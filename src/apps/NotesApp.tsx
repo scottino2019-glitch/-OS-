@@ -268,7 +268,7 @@ export const NotesApp: React.FC = () => {
       </div>
 
       {/* Note List */}
-      <div className="flex-1 overflow-y-auto p-3.5 space-y-3 slim-scrollbar">
+      <div className="flex-1 overflow-y-auto p-3.5 space-y-3 slim-scrollbar touch-scroll">
         {filteredNotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center text-slate-400">
             <FileText size={44} className="mb-2 text-slate-300" />

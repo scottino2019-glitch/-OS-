@@ -224,7 +224,7 @@ export const CalendarApp: React.FC = () => {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-2 slim-scrollbar">
+        <div className="flex-1 overflow-y-auto space-y-2 slim-scrollbar touch-scroll">
           {selectedDayEvents.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 text-center text-slate-400">
               <CalendarIcon size={36} className="mb-2 text-slate-300" />

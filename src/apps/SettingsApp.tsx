@@ -80,7 +80,7 @@ export const SettingsApp: React.FC = () => {
       </div>
 
       {/* Main Settings List */}
-      <div className="flex-1 overflow-y-auto p-3.5 space-y-4 slim-scrollbar">
+      <div className="flex-1 overflow-y-auto p-3.5 space-y-4 slim-scrollbar touch-scroll">
         {/* Section 1: Backup & Restore */}
         <div className="bg-white border border-indigo-200 rounded-2xl p-4 shadow-xs space-y-3">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">

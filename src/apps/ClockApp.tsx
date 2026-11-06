@@ -128,7 +128,7 @@ export const ClockApp: React.FC = () => {
       </div>
 
       {/* Main Tab Views */}
-      <div className="flex-1 overflow-y-auto p-4 slim-scrollbar">
+      <div className="flex-1 overflow-y-auto p-4 slim-scrollbar touch-scroll">
         {/* World Clocks */}
         {tab === 'clock' && (
           <div className="space-y-3">

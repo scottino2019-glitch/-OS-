@@ -26,7 +26,20 @@ import {
   Sparkles,
   Lock,
   Unlock,
-  Flashlight
+  Flashlight,
+  Music,
+  Video,
+  ShoppingBag,
+  MessageSquare,
+  Heart,
+  Zap,
+  Coffee,
+  Cloud,
+  Mail,
+  Star,
+  MapPin,
+  Shield,
+  Layers
 } from 'lucide-react';
 
 const ICON_MAP: Record<string, React.FC<{ size?: number; className?: string }>> = {
@@ -45,7 +58,20 @@ const ICON_MAP: Record<string, React.FC<{ size?: number; className?: string }>> 
   Gamepad2,
   Palette,
   BookOpen,
-  Sparkles
+  Sparkles,
+  Music,
+  Video,
+  ShoppingBag,
+  MessageSquare,
+  Heart,
+  Zap,
+  Coffee,
+  Cloud,
+  Mail,
+  Star,
+  MapPin,
+  Shield,
+  Layers
 };
 
 export const HomeScreen: React.FC = () => {
@@ -231,7 +257,7 @@ export const HomeScreen: React.FC = () => {
       </div>
 
       {/* Main Apps Grid (min-h-0 guarantees dock is NEVER pushed off-screen) */}
-      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar py-2 px-1">
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar touch-scroll py-2 px-1">
         <div className="grid grid-cols-4 gap-y-3.5 gap-x-2">
           {/* Native Built-in Apps */}
           {BUILT_IN_APPS.map(app => {

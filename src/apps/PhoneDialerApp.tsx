@@ -186,7 +186,7 @@ export const PhoneDialerApp: React.FC = () => {
         </div>
       ) : (
         /* Contacts List */
-        <div className="flex-1 overflow-y-auto p-3.5 space-y-2.5 slim-scrollbar">
+        <div className="flex-1 overflow-y-auto p-3.5 space-y-2.5 slim-scrollbar touch-scroll">
           {CONTACTS.map(contact => (
             <div
               key={contact.number}

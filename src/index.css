@@ -8,10 +8,30 @@
     --font-latin: "Plus Jakarta Sans", sans-serif;
   }
 
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
   body {
     font-family: var(--font-chinese);
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
+
+  /* Allow text selection in editors and inputs */
+  input, textarea, [contenteditable="true"], .select-text {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+  }
+}
+
+/* Smooth touch scrolling with momentum */
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 /* Asian tech market squircle & micro-glow styling */
