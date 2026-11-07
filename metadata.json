@@ -1,6 +1,6 @@
 {
   "name": "极光OS · 华智虚拟手机",
   "description": "Telefono virtuale con interfaccia cinese ispirata ai sistemi operativi asiatici, app native (blocknote, calendario lunare, editor, calcolatrice, foto, orologio), supporto per app esterne da cartella public e backup locale istantaneo.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

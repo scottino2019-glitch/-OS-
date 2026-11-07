@@ -145,6 +145,12 @@ export const PhoneChassis: React.FC = () => {
   const wallpaperTheme = settings.wallpaper || (currentWp as any)?.theme || 'bamboo_parchment';
   const wallpaperStyle = currentWp ? currentWp.bgStyle : INITIAL_WALLPAPERS[0].bgStyle;
   const isCustomImageWallpaper = settings.wallpaper.startsWith('data:') || settings.wallpaper.startsWith('http');
+  const isDarkWallpaper =
+    settings.wallpaper?.includes('lacquer') ||
+    settings.wallpaper?.includes('crimson') ||
+    settings.wallpaper?.includes('night') ||
+    isCustomImageWallpaper ||
+    settings.theme === 'dark';
 
   const activeExternalApp = installedApps.find(a => a.id === activeAppId);
   const currentAppTitle = activeExternalApp
@@ -261,7 +267,11 @@ export const PhoneChassis: React.FC = () => {
       </div>
 
       {/* Bottom Virtual Android/OS Navigation Bar (Back, Home, Multitask) */}
-      <nav className="h-9 sm:h-8 w-full bg-[#f4ece1]/95 border-t border-stone-300/80 backdrop-blur-md flex items-center justify-around px-8 z-40 shrink-0 shadow-2xs">
+      <nav className={`h-9 sm:h-8 w-full ${
+        isDarkWallpaper
+          ? 'bg-stone-950/90 border-stone-800 text-stone-300'
+          : 'bg-[#f4ece1]/95 border-stone-300/80 text-stone-700'
+      } border-t backdrop-blur-md flex items-center justify-around px-8 z-40 shrink-0 shadow-2xs`}>
         {/* 1. Back button (◀) */}
         <button
           onClick={() => {
@@ -273,7 +283,9 @@ export const PhoneChassis: React.FC = () => {
             }
           }}
           title="返回 (Indietro)"
-          className="w-14 h-8 flex items-center justify-center text-stone-700 hover:text-black hover:bg-stone-200/80 rounded-lg active:scale-90 transition-transform"
+          className={`w-14 h-8 flex items-center justify-center ${
+            isDarkWallpaper ? 'text-stone-300 hover:text-white hover:bg-stone-800/80' : 'text-stone-700 hover:text-black hover:bg-stone-200/80'
+          } rounded-lg active:scale-90 transition-transform`}
         >
           <ChevronLeft size={19} className="stroke-[2.5]" />
         </button>
@@ -286,7 +298,9 @@ export const PhoneChassis: React.FC = () => {
             setMultitaskOpen(false);
           }}
           title="主屏幕 (Home)"
-          className="w-14 h-8 flex items-center justify-center text-stone-700 hover:text-black hover:bg-stone-200/80 rounded-lg active:scale-90 transition-transform"
+          className={`w-14 h-8 flex items-center justify-center ${
+            isDarkWallpaper ? 'text-stone-300 hover:text-white hover:bg-stone-800/80' : 'text-stone-700 hover:text-black hover:bg-stone-200/80'
+          } rounded-lg active:scale-90 transition-transform`}
         >
           <Circle size={16} className="stroke-[2.5]" />
         </button>
@@ -298,7 +312,9 @@ export const PhoneChassis: React.FC = () => {
             setMultitaskOpen(!isMultitaskOpen);
           }}
           title="多任务后台 (Recenti)"
-          className="w-14 h-8 flex items-center justify-center text-stone-700 hover:text-black hover:bg-stone-200/80 rounded-lg active:scale-90 transition-transform"
+          className={`w-14 h-8 flex items-center justify-center ${
+            isDarkWallpaper ? 'text-stone-300 hover:text-white hover:bg-stone-800/80' : 'text-stone-700 hover:text-black hover:bg-stone-200/80'
+          } rounded-lg active:scale-90 transition-transform`}
         >
           <Square size={15} className="stroke-[2.5]" />
         </button>

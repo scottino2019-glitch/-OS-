@@ -18,7 +18,8 @@ import {
   Type,
   Sun,
   Contrast,
-  RefreshCw
+  RefreshCw,
+  SwitchCamera
 } from 'lucide-react';
 
 const CAMERA_WATERMARKS = [
@@ -53,8 +54,12 @@ export const GalleryApp: React.FC = () => {
   // Live Camera State
   const [cameraFilterIdx, setCameraFilterIdx] = useState(0);
   const [cameraWatermarkIdx, setCameraWatermarkIdx] = useState(0);
+  const [cameraWatermarkEnabled, setCameraWatermarkEnabled] = useState(true);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState(false);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [isCameraActive, setIsCameraActive] = useState(false);
 
   // Photo Editor State
   const [isEditing, setIsEditing] = useState(false);
@@ -102,28 +107,86 @@ export const GalleryApp: React.FC = () => {
     setEditFilterIdx(0);
   };
 
+  // Robust Camera Stream Connection & Cleanup
   useEffect(() => {
-    let stream: MediaStream | null = null;
+    let activeStream: MediaStream | null = null;
+    let isCancelled = false;
+
     if (mode === 'camera') {
-      navigator.mediaDevices?.getUserMedia({ video: true, audio: false })
-        .then(s => {
-          stream = s;
-          if (videoRef.current) {
-            videoRef.current.srcObject = s;
+      setIsCameraActive(false);
+
+      const startCamera = async () => {
+        try {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setHasCameraPermission(false);
+            return;
           }
+
+          let stream: MediaStream;
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+              audio: false
+            });
+          } catch {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          }
+
+          if (isCancelled) {
+            stream.getTracks().forEach(t => t.stop());
+            return;
+          }
+
+          activeStream = stream;
+          setMediaStream(stream);
           setHasCameraPermission(true);
-        })
-        .catch(() => {
-          setHasCameraPermission(false);
-        });
+
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.onloadedmetadata = () => {
+              videoRef.current?.play().then(() => {
+                setIsCameraActive(true);
+              }).catch(e => console.warn('Video play error:', e));
+            };
+          }
+        } catch (err) {
+          console.warn('Camera stream failed:', err);
+          if (!isCancelled) {
+            setHasCameraPermission(false);
+            setMediaStream(null);
+            setIsCameraActive(false);
+          }
+        }
+      };
+
+      startCamera();
+    } else {
+      setMediaStream(null);
+      setIsCameraActive(false);
     }
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      isCancelled = true;
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
       }
     };
-  }, [mode]);
+  }, [mode, facingMode]);
+
+  // Secondary stream attacher in case element renders after stream ready
+  useEffect(() => {
+    if (videoRef.current && mediaStream) {
+      if (videoRef.current.srcObject !== mediaStream) {
+        videoRef.current.srcObject = mediaStream;
+      }
+      videoRef.current.play().then(() => {
+        setIsCameraActive(true);
+      }).catch(e => console.warn('Secondary video play error:', e));
+    }
+  }, [mediaStream]);
 
   // Combined CSS filter string for live preview
   const getCombinedFilterCss = (presetIdx: number) => {
@@ -286,9 +349,18 @@ export const GalleryApp: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    if (hasCameraPermission && videoRef.current) {
+    if (hasCameraPermission && videoRef.current && videoRef.current.videoWidth > 0) {
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
       ctx.filter = FILTERS[cameraFilterIdx].css;
+      if (facingMode === 'user') {
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+      }
       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      if (facingMode === 'user') {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+      }
     } else {
       const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
       grad.addColorStop(0, '#f0fdf4');
@@ -308,19 +380,21 @@ export const GalleryApp: React.FC = () => {
       ctx.fill();
     }
 
-    // Draw Watermark at bottom
-    ctx.filter = 'none';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-    ctx.fillRect(0, canvas.height - 90, canvas.width, 90);
+    // Draw Watermark at bottom (if enabled)
+    if (cameraWatermarkEnabled) {
+      ctx.filter = 'none';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.fillRect(0, canvas.height - 90, canvas.width, 90);
 
-    ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 22px system-ui, sans-serif';
-    ctx.fillText(CAMERA_WATERMARKS[cameraWatermarkIdx], 32, canvas.height - 48);
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 22px system-ui, sans-serif';
+      ctx.fillText(CAMERA_WATERMARKS[cameraWatermarkIdx], 32, canvas.height - 48);
 
-    ctx.fillStyle = '#64748b';
-    ctx.font = '16px monospace';
-    const nowStr = new Date().toLocaleTimeString();
-    ctx.fillText(`SHOT ON AURORA 16 · ${nowStr}`, 32, canvas.height - 24);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '16px monospace';
+      const nowStr = new Date().toLocaleTimeString();
+      ctx.fillText(`SHOT ON AURORA 16 · ${nowStr}`, 32, canvas.height - 24);
+    }
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
 
@@ -774,52 +848,75 @@ export const GalleryApp: React.FC = () => {
         <div className="flex items-center justify-between px-4 py-3 bg-black/60 backdrop-blur-md z-10 shrink-0">
           <button
             onClick={() => setMode('gallery')}
-            className="text-xs font-bold text-white px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-xl active:scale-95 transition-all"
+            className="text-xs font-bold text-white px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-xl active:scale-95 transition-all cursor-pointer"
           >
             {t('返回相册', 'Galleria')}
           </button>
 
-          <button
-            onClick={() => setCameraWatermarkIdx((cameraWatermarkIdx + 1) % CAMERA_WATERMARKS.length)}
-            className="text-xs font-bold text-amber-300 bg-amber-400/20 px-3 py-1 rounded-full border border-amber-400/30 truncate max-w-[200px]"
-          >
-            {CAMERA_WATERMARKS[cameraWatermarkIdx]}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Toggle Watermark on/off cleanly without covering the screen */}
+            <button
+              onClick={() => setCameraWatermarkEnabled(prev => !prev)}
+              className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all active:scale-95 cursor-pointer ${
+                cameraWatermarkEnabled
+                  ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
+                  : 'bg-white/10 text-white/60 border-white/20'
+              }`}
+              title="Attiva o disattiva la filigrana Leica sulla foto"
+            >
+              {cameraWatermarkEnabled ? 'Filigrana: ON' : 'Filigrana: OFF'}
+            </button>
+
+            <button
+              onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+              className="p-2 bg-white/20 hover:bg-white/30 text-white rounded-xl active:scale-95 transition-all cursor-pointer"
+              title="Inverti fotocamera frontale/posteriore"
+            >
+              <SwitchCamera size={16} />
+            </button>
+          </div>
         </div>
 
-        {/* Viewfinder */}
-        <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-slate-950">
-          {hasCameraPermission ? (
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              style={{ filter: FILTERS[cameraFilterIdx].css }}
-              className="w-full h-full object-cover"
-            />
-          ) : (
+        {/* Viewfinder: 100% CLEAN, UNOBSTRUCTED LIVE VIDEO */}
+        <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-black">
+          {/* Real Camera Video Element: ALWAYS MOUNTED in the DOM so ref is never null */}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{ filter: FILTERS[cameraFilterIdx].css }}
+            className={`w-full h-full object-cover transition-opacity duration-300 ${
+              hasCameraPermission || mediaStream ? 'opacity-100' : 'opacity-0 absolute inset-0'
+            } ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
+            onLoadedMetadata={e => {
+              const vid = e.target as HTMLVideoElement;
+              vid.play().then(() => setIsCameraActive(true)).catch(() => {});
+            }}
+          />
+
+          {/* Simple Permission Grant prompt ONLY if no stream and no permission */}
+          {!hasCameraPermission && !mediaStream && (
             <div
               style={{ filter: FILTERS[cameraFilterIdx].css }}
-              className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-100 via-sky-50 to-emerald-100 p-6 text-center text-slate-900"
+              className="w-full h-full flex flex-col items-center justify-center bg-stone-950 p-6 text-center text-white"
             >
-              <Sparkles size={52} className="text-amber-500 mb-3 animate-pulse" />
-              <h3 className="text-lg font-bold text-slate-900 mb-1">
-                {t('极光 AI 仿生镜头就绪', 'Sensore Fotografico')}
+              <Camera size={44} className="text-amber-400 mb-3" />
+              <h3 className="text-base font-bold mb-1">
+                {t('启用相机拍摄', 'Attiva Fotocamera')}
               </h3>
-              <p className="text-xs text-slate-600 max-w-xs font-medium">
-                {t('点击下方快门，拍摄并生成具有专属水印的艺术大片', 'Tocca l\'otturatore per scattare una foto con filtri e filigrana Leica')}
+              <p className="text-xs text-stone-300 max-w-xs font-medium mb-4">
+                {t('请允许浏览器使用摄像头，或点击下方切换镜头', 'Consenti l\'accesso alla fotocamera per visualizzare l\'anteprima in tempo reale')}
               </p>
+              <button
+                onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+              >
+                <SwitchCamera size={16} />
+                <span>{t('切换 / 连接镜头', 'Connetti Fotocamera')}</span>
+              </button>
             </div>
           )}
-
-          {/* Watermark preview overlay */}
-          <div className="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur-md rounded-2xl p-3 text-xs text-slate-800 flex justify-between items-center border border-white/60 shadow-lg">
-            <span className="font-bold text-slate-900 tracking-wide truncate max-w-[200px]">
-              {CAMERA_WATERMARKS[cameraWatermarkIdx]}
-            </span>
-            <span className="text-amber-600 font-mono text-xs font-bold">OIS ON</span>
-          </div>
         </div>
 
         {/* Filters Picker */}
@@ -843,7 +940,7 @@ export const GalleryApp: React.FC = () => {
         <div className="p-4 bg-black flex items-center justify-around shrink-0">
           <button
             onClick={() => setMode('gallery')}
-            className="w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 active:scale-95 transition-all"
+            className="w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 active:scale-95 transition-all cursor-pointer"
             title="Galleria"
           >
             <ImageIcon size={20} />
@@ -852,20 +949,19 @@ export const GalleryApp: React.FC = () => {
           {/* Big Shutter button */}
           <button
             onClick={takeSnapshot}
-            className="w-18 h-18 rounded-full border-4 border-white/90 p-1 flex items-center justify-center active:scale-95 transition-transform"
+            className="w-18 h-18 rounded-full border-4 border-white/90 p-1 flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
           >
             <div className="w-full h-full rounded-full bg-white active:bg-amber-400 transition-colors" />
           </button>
 
-          <label className="w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 cursor-pointer active:scale-95 transition-all" title="Importa foto">
-            <Upload size={20} />
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-          </label>
+          {/* Switch Camera Button (Front / Rear) */}
+          <button
+            onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+            title="Inverti Fotocamera Frontale / Posteriore"
+            className="w-11 h-11 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-200 active:scale-95 transition-all cursor-pointer"
+          >
+            <SwitchCamera size={20} />
+          </button>
         </div>
       </div>
     );

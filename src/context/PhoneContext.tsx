@@ -352,21 +352,47 @@ export const PhoneProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ];
         const ICONS = ['Globe', 'Sparkles', 'Gamepad2', 'Palette', 'BookOpen', 'Compass', 'Code'];
 
-        // Normalize both simple format ({ name, url }) and advanced format with Italian name ({ name, nameIt, url })
+        const detectIcon = (strText: string, url: string, customIcon?: string): string => {
+          if (customIcon) return customIcon;
+          const s = `${strText} ${url}`.toLowerCase();
+          if (s.includes('2048') || s.includes('tetris') || s.includes('game') || s.includes('gioco') || s.includes('play')) return 'Gamepad2';
+          if (s.includes('draw') || s.includes('paint') || s.includes('excalidraw') || s.includes('lavagna') || s.includes('disegno') || s.includes('art')) return 'Palette';
+          if (s.includes('wiki') || s.includes('book') || s.includes('moe') || s.includes('dizionario') || s.includes('libro')) return 'BookOpen';
+          if (s.includes('weather') || s.includes('meteo') || s.includes('earth') || s.includes('cloud') || s.includes('vento')) return 'Cloud';
+          if (s.includes('music') || s.includes('audio') || s.includes('musica') || s.includes('suono')) return 'Music';
+          if (s.includes('video') || s.includes('youtube') || s.includes('film') || s.includes('movie')) return 'Video';
+          if (s.includes('code') || s.includes('github') || s.includes('dev')) return 'Code';
+          return 'Globe';
+        };
+
+        const detectCategory = (iconName: string, customCategory?: string): string => {
+          if (customCategory) return customCategory;
+          if (iconName === 'Gamepad2') return '游戏娱乐';
+          if (iconName === 'Palette') return '创意工具';
+          if (iconName === 'BookOpen') return '学习百科';
+          return '工具';
+        };
+
+        // Normalize simple format: only { "name": "...", "nameIt": "...", "url": "..." } required!
         const normalizedApps: ExternalApp[] = data
-          .filter(item => item && item.url)
+          .filter(item => item && (item.url || item.link))
           .map((item, idx) => {
-            const italianName = item.nameIt || item.name_it || item.nome_it || item.nomeIt;
+            const rawUrl = item.url || item.link;
+            const italianName = item.nameIt || item.name_it || item.nome_it || item.nomeIt || item.nome;
+            const primaryName = item.name || item.nome || italianName || '外部应用';
+            const autoIcon = detectIcon(primaryName + ' ' + (italianName || ''), rawUrl, item.icon);
+            const autoCategory = detectCategory(autoIcon, item.category);
+
             return {
-              id: item.id || `app_pub_${idx}_${String(item.name || 'app').replace(/\s+/g, '_')}`,
-              name: item.name || '外部应用',
+              id: item.id || `app_pub_${idx}_${String(primaryName).replace(/\s+/g, '_')}`,
+              name: primaryName,
               nameIt: italianName || undefined,
               subName: item.subName || italianName || 'Web App',
               description: item.description || (italianName ? `App: ${italianName}` : '来自 public/apps.json'),
-              category: item.category || '工具',
-              icon: item.icon || ICONS[idx % ICONS.length],
+              category: autoCategory,
+              icon: autoIcon,
               gradient: item.gradient || GRADIENTS[idx % GRADIENTS.length],
-              url: item.url,
+              url: rawUrl,
               displayMode: item.displayMode || 'iframe',
               badge: item.badge,
               isPreinstalled: true

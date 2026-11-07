@@ -18,6 +18,9 @@ export const StatusBar: React.FC = () => {
   const isDarkWallpaper =
     settings.wallpaper?.includes('lacquer') ||
     settings.wallpaper?.includes('crimson') ||
+    settings.wallpaper?.includes('night') ||
+    settings.wallpaper?.startsWith('data:') ||
+    settings.wallpaper?.startsWith('http') ||
     settings.theme === 'dark';
 
   const textColor = isDarkWallpaper ? 'text-amber-100' : 'text-stone-900 font-bold';

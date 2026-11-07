@@ -97,36 +97,60 @@ export const HomeScreen: React.FC = () => {
   const hours = String(currentTime.getHours()).padStart(2, '0');
   const minutes = String(currentTime.getMinutes()).padStart(2, '0');
 
+  const isDark =
+    settings.wallpaper?.includes('lacquer') ||
+    settings.wallpaper?.includes('crimson') ||
+    settings.wallpaper?.includes('night') ||
+    settings.wallpaper?.startsWith('data:') ||
+    settings.wallpaper?.startsWith('http') ||
+    settings.theme === 'dark';
+
   // Lock Screen View
   if (isLocked) {
     return (
-      <div className="flex flex-col h-full justify-between p-5 select-none relative overflow-hidden text-stone-900 z-10">
+      <div className={`flex flex-col h-full justify-between p-5 select-none relative overflow-hidden z-10 ${
+        isDark ? 'text-white' : 'text-stone-900'
+      }`}>
         {/* Top Clock & Lunar Date */}
         <div className="text-center pt-8">
-          <div className="flex items-center justify-center gap-1.5 text-xs text-red-900 font-bold mb-1">
+          <div className={`flex items-center justify-center gap-1.5 text-xs font-bold mb-1 ${
+            isDark ? 'text-amber-400 drop-shadow-sm' : 'text-red-900'
+          }`}>
             <Lock size={15} />
             <span>极光面容识别已就绪</span>
           </div>
-          <div className="text-6xl font-light tracking-tight font-mono text-stone-950 my-1">
+          <div className={`text-6xl font-light tracking-tight font-mono my-1 ${
+            isDark ? 'text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)]' : 'text-stone-950'
+          }`}>
             {hours}:{minutes}
           </div>
-          <div className="text-base font-extrabold text-stone-900">
+          <div className={`text-base font-extrabold ${
+            isDark ? 'text-amber-100 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]' : 'text-stone-900'
+          }`}>
             {currentTime.getMonth() + 1}月{currentTime.getDate()}日 {weekday}
           </div>
-          <div className="text-sm text-stone-800 font-bold mt-1 font-serif">
+          <div className={`text-sm font-bold mt-1 font-serif ${
+            isDark ? 'text-amber-200 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]' : 'text-stone-800'
+          }`}>
             {lunar.fullLunar} {lunar.solarTerm ? `· ${lunar.solarTerm}` : ''}
           </div>
         </div>
 
         {/* Lock Screen Glance Widget */}
-        <div className="mx-auto w-full max-w-xs bg-[#f4ece1]/90 backdrop-blur-md rounded-2xl p-3.5 border border-stone-300 shadow-sm flex items-center justify-between text-xs text-stone-900">
+        <div className={`mx-auto w-full max-w-xs backdrop-blur-md rounded-2xl p-3.5 border shadow-sm flex items-center justify-between text-xs ${
+          isDark ? 'bg-stone-900/85 border-stone-700 text-white' : 'bg-[#f4ece1]/90 border-stone-300 text-stone-900'
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-600/15 text-amber-800 flex items-center justify-center shrink-0">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+              isDark ? 'bg-amber-400/20 text-amber-300' : 'bg-amber-600/15 text-amber-800'
+            }`}>
               <Sun size={20} />
             </div>
             <div>
-              <div className="font-bold text-sm text-stone-950">北京 · 晴 22°C</div>
-              <div className="text-xs text-stone-700 font-medium">空气优 AQI 24 · 微风舒适</div>
+              <div className="font-bold text-sm">北京 · 晴 22°C</div>
+              <div className={`text-xs font-medium ${isDark ? 'text-stone-300' : 'text-stone-700'}`}>
+                空气优 AQI 24 · 微风舒适
+              </div>
             </div>
           </div>
           <span className="text-xs text-emerald-900 font-bold bg-emerald-100/90 px-2.5 py-1 rounded-full border border-emerald-300">
@@ -142,6 +166,8 @@ export const HomeScreen: React.FC = () => {
               className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-sm ${
                 settings.flashlight
                   ? 'bg-amber-400 text-stone-950 font-bold shadow-amber-400/40 scale-105'
+                  : isDark
+                  ? 'bg-stone-900/80 text-white border border-stone-700'
                   : 'bg-[#f4ece1]/90 text-stone-800 border border-stone-300'
               }`}
             >
@@ -153,7 +179,7 @@ export const HomeScreen: React.FC = () => {
                 setLocked(false);
                 sound.playSuccess();
               }}
-              className="flex items-center gap-2 px-6 py-3 rounded-full bg-red-700 text-white text-xs sm:text-sm font-bold tracking-wide border border-red-800 active:scale-95 transition-all shadow-md"
+              className="flex items-center gap-2 px-6 py-3 rounded-full bg-red-700 hover:bg-red-600 text-white text-xs sm:text-sm font-bold tracking-wide border border-red-800 active:scale-95 transition-all shadow-md"
             >
               <Unlock size={16} />
               <span>{t('轻触解锁手机', 'Tocca per sbloccare')}</span>
@@ -164,7 +190,11 @@ export const HomeScreen: React.FC = () => {
                 setLocked(false);
                 openApp('camera');
               }}
-              className="w-12 h-12 rounded-full bg-[#f4ece1]/90 text-stone-800 border border-stone-300 flex items-center justify-center shadow-sm active:scale-95 transition-all"
+              className={`w-12 h-12 rounded-full border flex items-center justify-center shadow-sm active:scale-95 transition-all ${
+                isDark
+                  ? 'bg-stone-900/80 text-white border-stone-700'
+                  : 'bg-[#f4ece1]/90 text-stone-800 border-stone-300'
+              }`}
             >
               <Camera size={20} />
             </button>
@@ -244,15 +274,19 @@ export const HomeScreen: React.FC = () => {
     <div className="flex flex-col h-full justify-between p-2.5 sm:p-3 select-none relative overflow-hidden z-10">
       {/* Top Header: Clean, Elegant Clock & Lunar Date (Compact & Shrink-0) */}
       <div className="pt-1 pb-0.5 px-2 text-center shrink-0">
-        <div className="text-4xl font-light font-mono text-stone-900 tracking-tight leading-none">
+        <div className={`text-4xl font-light font-mono tracking-tight leading-none ${
+          isDark ? 'text-white drop-shadow-[0_2px_5px_rgba(0,0,0,0.9)]' : 'text-stone-900'
+        }`}>
           {hours}:{minutes}
         </div>
-        <div className="text-xs font-bold text-stone-800 mt-1 flex items-center justify-center gap-1.5 font-serif">
+        <div className={`text-xs font-bold mt-1 flex items-center justify-center gap-1.5 font-serif ${
+          isDark ? 'text-amber-100 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]' : 'text-stone-800'
+        }`}>
           <span>{currentTime.getMonth() + 1}月{currentTime.getDate()}日 {weekday}</span>
-          <span className="text-stone-400">·</span>
-          <span className="text-stone-700">{lunar.fullLunar}</span>
-          <span className="text-stone-400">·</span>
-          <span className="text-amber-800 font-sans font-semibold">晴 22°C</span>
+          <span className={isDark ? 'text-white/60' : 'text-stone-400'}>·</span>
+          <span className={isDark ? 'text-amber-200' : 'text-stone-700'}>{lunar.fullLunar}</span>
+          <span className={isDark ? 'text-white/60' : 'text-stone-400'}>·</span>
+          <span className={isDark ? 'text-amber-300 font-sans font-semibold drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]' : 'text-amber-800 font-sans font-semibold'}>晴 22°C</span>
         </div>
       </div>
 
@@ -280,10 +314,14 @@ export const HomeScreen: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <span className="text-xs font-bold text-stone-900 mt-1.5 text-center drop-shadow-2xs truncate max-w-[82px] leading-tight">
+                <span className={`text-xs font-bold mt-1.5 text-center truncate max-w-[82px] leading-tight ${
+                  isDark ? 'text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]' : 'text-stone-900 drop-shadow-2xs'
+                }`}>
                   {app.name}
                 </span>
-                <span className="text-[11px] text-stone-700 font-medium truncate max-w-[82px] leading-tight">
+                <span className={`text-[11px] font-medium truncate max-w-[82px] leading-tight ${
+                  isDark ? 'text-amber-200/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]' : 'text-stone-700'
+                }`}>
                   {app.subName}
                 </span>
               </button>
@@ -311,10 +349,14 @@ export const HomeScreen: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <span className="text-xs font-bold text-stone-900 mt-1.5 text-center drop-shadow-2xs truncate max-w-[82px] leading-tight">
+                <span className={`text-xs font-bold mt-1.5 text-center truncate max-w-[82px] leading-tight ${
+                  isDark ? 'text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]' : 'text-stone-900 drop-shadow-2xs'
+                }`}>
                   {app.name}
                 </span>
-                <span className="text-[11px] text-stone-700 font-medium truncate max-w-[82px] leading-tight">
+                <span className={`text-[11px] font-medium truncate max-w-[82px] leading-tight ${
+                  isDark ? 'text-amber-200/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]' : 'text-stone-700'
+                }`}>
                   {app.nameIt || app.subName}
                 </span>
               </button>
@@ -323,8 +365,10 @@ export const HomeScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Bottom Dock: Compact, Sleek Capsule (No bulky text labels underneath) */}
-      <div className="mx-2 py-2.5 px-4 bg-[#f8f1e7]/85 border border-amber-900/15 backdrop-blur-md rounded-2xl flex items-center justify-around shadow-xs mb-1 shrink-0">
+      {/* Bottom Dock: Compact, Sleek Capsule */}
+      <div className={`mx-2 py-2.5 px-4 rounded-2xl flex items-center justify-around shadow-xs mb-1 shrink-0 backdrop-blur-md transition-colors ${
+        isDark ? 'bg-stone-900/80 border border-stone-700/80' : 'bg-[#f8f1e7]/85 border border-amber-900/15'
+      }`}>
         <button
           onClick={() => openApp('phone')}
           title="电话 (Telefono)"

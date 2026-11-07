@@ -1,28 +1,29 @@
 ========================================================================
-极光OS · GUIDA AGGIUNTA APP ESTERNE CON NOME IN ITALIANO
+极光OS · GUIDA SEMPLICE PER AGGIUNGERE LE TUE APP (/public/apps.json)
 ========================================================================
 
-Puoi configurare le app esterne direttamente nel file /public/apps.json!
-Supporta sia il nome originale (cinese o inglese) che il nome in italiano ("nameIt"):
+Nel file /public/apps.json bastano SOLO 3 RIGHE per ogni app:
 
 [
   {
-    "name": "Nome Cinese o Internazionale",
-    "nameIt": "Nome dell'App in Italiano",
-    "subName": "Descrizione o sottotitolo",
-    "url": "https://link-del-sito.com",
-    "icon": "Gamepad2",
-    "category": "游戏娱乐"
+    "name": "2048 小游戏",
+    "nameIt": "Gioco 2048",
+    "url": "https://play2048.co/"
+  },
+  {
+    "name": "Wikipedia",
+    "url": "https://it.wikipedia.org"
   }
 ]
 
-Campi disponibili:
-- "name": Nome principale visualizzato (es: "2048 小游戏")
-- "nameIt": Nome in ITALIANO (es: "Gioco 2048") -> Mostrato chiaramente sotto l'icona!
-- "url": Il link HTTPS della web application
-- "icon": Icona tra quelle disponibili (Globe, Gamepad2, Palette, Music, Video, Code, ecc.)
-- "category": Categoria (工具, 游戏娱乐, 创意工具, 学习百科)
+COSA SCRIVERE:
+- "name": Nome dell'app (es. in cinese o originale)
+- "nameIt": Nome in ITALIANO (opzionale, es. "Gioco 2048")
+- "url": Il link del sito o gioco da aprire
 
-Se inserisci solo "name" e "url", il telefono genera tutto il resto automaticamente!
-Puoi anche aggiungere nuove app direttamente dal telefono aprendo "应用市场" (App Market).
+TUTTO IL RESTO È AUTOMATICO:
+- Icone: riconosciute in automatico dal nome o dal link (giochi, disegno, meteo, enciclopedie, musica, ecc.)
+- Colori, categorie e grafica: assegnati automaticamente dal sistema!
+
+Non serve specificare altro!
 ========================================================================

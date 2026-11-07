@@ -2,49 +2,31 @@
   {
     "name": "2048 小游戏",
     "nameIt": "Gioco 2048",
-    "subName": "Puzzle Game",
-    "category": "游戏娱乐",
-    "icon": "Gamepad2",
     "url": "https://play2048.co/"
   },
   {
     "name": "在线画板",
     "nameIt": "Lavagna Disegno",
-    "subName": "Disegno & Schizzi",
-    "category": "创意工具",
-    "icon": "Palette",
     "url": "https://excalidraw.com/"
   },
   {
     "name": "中华萌典",
     "nameIt": "Dizionario Moe",
-    "subName": "Dizionario Caratteri",
-    "category": "学习百科",
-    "icon": "BookOpen",
     "url": "https://www.moedict.tw/"
   },
   {
     "name": "维基百科",
     "nameIt": "Wikipedia",
-    "subName": "Enciclopedia",
-    "category": "学习百科",
-    "icon": "Globe",
     "url": "https://zh.m.wikipedia.org/"
   },
   {
     "name": "地球天象",
     "nameIt": "Meteo Venti Terra",
-    "subName": "Mappa Venti 3D",
-    "category": "工具",
-    "icon": "Cloud",
     "url": "https://earth.nullschool.net/"
   },
   {
     "name": "经典方块",
     "nameIt": "Tetris Classico",
-    "subName": "Retro Game",
-    "category": "游戏娱乐",
-    "icon": "Gamepad2",
     "url": "https://chvin.github.io/react-tetris/"
   }
 ]
