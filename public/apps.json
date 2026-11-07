@@ -1,9 +1,5 @@
 [
   {
-    "name": "2048 小游戏",
-    "url": "https://play2048.co/"
-  },
-  {
     "name": "在线画板",
     "url": "https://excalidraw.com/"
   },
@@ -14,10 +10,6 @@
   {
     "name": "维基百科",
     "url": "https://zh.m.wikipedia.org/"
-  },
-  {
-    "name": "地球天象",
-    "url": "https://earth.nullschool.net/"
   },
   {
     "name": "经典方块",
