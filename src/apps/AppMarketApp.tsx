@@ -98,6 +98,7 @@ export const AppMarketApp: React.FC = () => {
   // Form State
   const [formUrl, setFormUrl] = useState('');
   const [formName, setFormName] = useState('');
+  const [formNameIt, setFormNameIt] = useState('');
   const [formSubName, setFormSubName] = useState('');
   const [formCategory, setFormCategory] = useState('工具');
   const [formIcon, setFormIcon] = useState('Globe');
@@ -133,8 +134,9 @@ export const AppMarketApp: React.FC = () => {
 
     addCustomApp({
       name: formName.trim(),
-      subName: formSubName.trim() || '外部应用',
-      description: '来自自定义添加的外部链接',
+      nameIt: formNameIt.trim() || undefined,
+      subName: formNameIt.trim() || formSubName.trim() || '外部应用',
+      description: formNameIt.trim() ? `App: ${formNameIt.trim()}` : '来自自定义添加的外部链接',
       category: formCategory,
       icon: formIcon,
       gradient: formGradient,
@@ -145,6 +147,7 @@ export const AppMarketApp: React.FC = () => {
 
     setFormUrl('');
     setFormName('');
+    setFormNameIt('');
     setFormSubName('');
     setShowAddModal(false);
     showToast(`应用「${formName.trim()}」已成功安装至桌面`);
@@ -236,15 +239,20 @@ export const AppMarketApp: React.FC = () => {
                   </div>
 
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-sm font-bold text-slate-900 truncate">{app.name}</h4>
+                      {app.nameIt && (
+                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                          {app.nameIt}
+                        </span>
+                      )}
                       {app.badge && (
                         <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.2 rounded border border-amber-300">
                           {app.badge}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500 font-medium truncate">{app.subName}</p>
+                    <p className="text-xs text-slate-500 font-medium truncate">{app.nameIt ? `${app.nameIt} • ${app.subName}` : app.subName}</p>
                     <p className="text-[11px] text-slate-400 truncate max-w-[170px]">{app.url}</p>
                   </div>
                 </div>
@@ -325,7 +333,7 @@ export const AppMarketApp: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-slate-700 font-bold block mb-1">应用名称 *</label>
+                  <label className="text-slate-700 font-bold block mb-1">应用名称 (Nome Cinese) *</label>
                   <input
                     type="text"
                     required
@@ -336,15 +344,26 @@ export const AppMarketApp: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-slate-700 font-bold block mb-1">副标题 (Sottotitolo)</label>
+                  <label className="text-slate-700 font-bold block mb-1">Nome in Italiano (Opzionale)</label>
                   <input
                     type="text"
-                    placeholder="如：Music Web"
-                    value={formSubName}
-                    onChange={e => setFormSubName(e.target.value)}
+                    placeholder="es. Giochi Retrò"
+                    value={formNameIt}
+                    onChange={e => setFormNameIt(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">副标题 (Sottotitolo / Descrizione breve)</label>
+                <input
+                  type="text"
+                  placeholder="如：Music Web / Applicazione online"
+                  value={formSubName}
+                  onChange={e => setFormSubName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600"
+                />
               </div>
 
               {/* Icon Selector with Full Touch Scrolling and Layout Switcher */}

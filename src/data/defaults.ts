@@ -155,10 +155,151 @@ export const PhoneConfig = {
   }
 ];
 
+const SVG_SHANGHAI = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 960" width="720" height="960">
+  <defs>
+    <linearGradient id="sky1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a0f24"/>
+      <stop offset="50%" stop-color="#1e1b4b"/>
+      <stop offset="85%" stop-color="#431407"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="river" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="960" fill="url(#sky1)"/>
+  <circle cx="120" cy="100" r="1.5" fill="#ffffff" opacity="0.8"/>
+  <circle cx="280" cy="80" r="2" fill="#ffffff" opacity="0.9"/>
+  <circle cx="560" cy="140" r="1.8" fill="#fde047" opacity="0.8"/>
+  <circle cx="420" cy="60" r="1.2" fill="#ffffff" opacity="0.7"/>
+  <path d="M 0,620 L 40,620 L 40,560 L 80,560 L 80,620 L 140,620 L 140,510 L 170,510 L 170,620 L 320,620 L 320,480 L 360,480 L 360,620 L 450,620 L 450,540 L 520,540 L 520,620 L 620,620 L 620,500 L 660,500 L 660,620 L 720,620 L 720,700 L 0,700 Z" fill="#0f172a" opacity="0.8"/>
+  <path d="M 500,620 L 525,260 Q 535,210 540,180 Q 545,210 555,260 L 580,620 Z" fill="#1e293b"/>
+  <path d="M 525,260 L 540,180 L 555,260 Z" fill="#38bdf8" opacity="0.85"/>
+  <line x1="540" y1="180" x2="540" y2="140" stroke="#38bdf8" stroke-width="3"/>
+  <path d="M 410,620 L 420,330 L 440,330 L 450,620 Z" fill="#0f172a"/>
+  <line x1="240" y1="620" x2="240" y2="160" stroke="#e11d48" stroke-width="4"/>
+  <line x1="215" y1="620" x2="235" y2="440" stroke="#f43f5e" stroke-width="6"/>
+  <line x1="265" y1="620" x2="245" y2="440" stroke="#f43f5e" stroke-width="6"/>
+  <circle cx="240" cy="440" r="48" fill="#e11d48"/>
+  <circle cx="230" cy="430" r="42" fill="#fb7185"/>
+  <circle cx="225" cy="420" r="16" fill="#ffe4e6"/>
+  <circle cx="240" cy="300" r="30" fill="#e11d48"/>
+  <circle cx="235" cy="295" r="24" fill="#fb7185"/>
+  <circle cx="230" cy="290" r="9" fill="#ffe4e6"/>
+  <circle cx="240" cy="205" r="13" fill="#fb7185"/>
+  <line x1="240" y1="192" x2="240" y2="110" stroke="#f43f5e" stroke-width="3"/>
+  <circle cx="240" cy="110" r="4" fill="#fef08a"/>
+  <rect x="0" y="660" width="720" height="300" fill="url(#river)"/>
+  <path d="M 210,670 L 270,670 L 255,900 L 225,900 Z" fill="#f43f5e" opacity="0.35"/>
+  <path d="M 515,670 L 565,670 L 555,880 L 525,880 Z" fill="#38bdf8" opacity="0.3"/>
+  <ellipse cx="240" cy="710" rx="90" ry="4" fill="#fbcfe8" opacity="0.4"/>
+  <ellipse cx="240" cy="760" rx="120" ry="5" fill="#f43f5e" opacity="0.3"/>
+  <ellipse cx="540" cy="730" rx="70" ry="3" fill="#bae6fd" opacity="0.4"/>
+  <ellipse cx="360" cy="820" rx="260" ry="6" fill="#fde047" opacity="0.25"/>
+  <rect x="0" y="870" width="720" height="90" fill="#ffffff" opacity="0.96"/>
+  <text x="36" y="915" font-family="system-ui, sans-serif" font-size="22" font-weight="bold" fill="#0f172a">AURORA 16 · LEICA 50mm f/1.4 OIS</text>
+  <text x="36" y="942" font-family="monospace" font-size="15" fill="#64748b">SHANGHAI BUND · 2026.11.02 · ISO 100 1/60s</text>
+  <circle cx="670" cy="915" r="18" fill="#dc2626"/>
+  <text x="670" y="922" font-family="serif" font-size="16" font-weight="bold" fill="#ffffff" text-anchor="middle">Leica</text>
+</svg>`)}`;
+
+const SVG_FORBIDDEN_CITY = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 960" width="720" height="960">
+  <defs>
+    <linearGradient id="snowsky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#475569"/>
+      <stop offset="60%" stop-color="#94a3b8"/>
+      <stop offset="100%" stop-color="#cbd5e1"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="960" fill="url(#snowsky)"/>
+  <circle cx="80" cy="120" r="3" fill="#ffffff" opacity="0.9"/>
+  <circle cx="210" cy="200" r="4" fill="#ffffff" opacity="0.85"/>
+  <circle cx="360" cy="110" r="2.5" fill="#ffffff" opacity="0.95"/>
+  <circle cx="510" cy="180" r="3.5" fill="#ffffff" opacity="0.9"/>
+  <circle cx="640" cy="90" r="4" fill="#ffffff" opacity="0.8"/>
+  <circle cx="150" cy="360" r="3" fill="#ffffff" opacity="0.9"/>
+  <circle cx="420" cy="340" r="3.5" fill="#ffffff" opacity="0.85"/>
+  <circle cx="580" cy="420" r="2.5" fill="#ffffff" opacity="0.9"/>
+  <path d="M 120,440 Q 240,400 360,400 Q 480,400 600,440 L 580,480 L 140,480 Z" fill="#b45309"/>
+  <rect x="0" y="520" width="720" height="350" fill="#991b1b"/>
+  <rect x="0" y="520" width="720" height="24" fill="#7f1d1d"/>
+  <path d="M -40,480 Q 360,420 760,480 L 740,540 Q 360,480 -20,540 Z" fill="#d97706"/>
+  <path d="M -40,480 Q 360,410 760,480 L 760,500 Q 360,430 -40,500 Z" fill="#fbbf24"/>
+  <path d="M -40,480 Q 360,410 760,480 Q 720,470 600,460 Q 360,400 120,460 Q 40,470 -40,480 Z" fill="#ffffff"/>
+  <rect x="80" y="600" width="90" height="180" rx="8" fill="#7f1d1d"/>
+  <rect x="220" y="600" width="90" height="180" rx="8" fill="#7f1d1d"/>
+  <rect x="410" y="600" width="90" height="180" rx="8" fill="#7f1d1d"/>
+  <rect x="550" y="600" width="90" height="180" rx="8" fill="#7f1d1d"/>
+  <circle cx="105" cy="640" r="4" fill="#fbbf24"/>
+  <circle cx="145" cy="640" r="4" fill="#fbbf24"/>
+  <circle cx="105" cy="680" r="4" fill="#fbbf24"/>
+  <circle cx="145" cy="680" r="4" fill="#fbbf24"/>
+  <path d="M 0,800 Q 240,760 480,780 Q 640,790 720,770 L 720,870 L 0,870 Z" fill="#f8fafc"/>
+  <path d="M 0,830 Q 360,800 720,830 L 720,870 L 0,870 Z" fill="#e2e8f0"/>
+  <path d="M 0,220 Q 120,240 220,180 Q 300,160 380,190" stroke="#292524" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <circle cx="220" cy="180" r="30" fill="#14532d"/>
+  <circle cx="340" cy="180" r="26" fill="#14532d"/>
+  <ellipse cx="220" cy="165" rx="26" ry="10" fill="#ffffff"/>
+  <ellipse cx="340" cy="168" rx="22" ry="9" fill="#ffffff"/>
+  <rect x="580" y="240" width="70" height="70" fill="#dc2626" rx="6"/>
+  <rect x="585" y="245" width="60" height="60" fill="none" stroke="#fef08a" stroke-width="2" rx="4"/>
+  <text x="615" y="286" font-family="'Noto Serif SC', serif" font-size="28" font-weight="bold" fill="#fef08a" text-anchor="middle">故宫</text>
+  <rect x="0" y="870" width="720" height="90" fill="#ffffff" opacity="0.96"/>
+  <text x="36" y="915" font-family="system-ui, sans-serif" font-size="22" font-weight="bold" fill="#0f172a">AURORA 16 · 蔡司 T* 经典镜头</text>
+  <text x="36" y="942" font-family="monospace" font-size="15" fill="#64748b">FORBIDDEN CITY · 2026.10.28 · 35mm f/1.8</text>
+  <circle cx="670" cy="915" r="18" fill="#dc2626"/>
+  <text x="670" y="922" font-family="serif" font-size="16" font-weight="bold" fill="#ffffff" text-anchor="middle">ZEISS</text>
+</svg>`)}`;
+
+const SVG_WUZHEN = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 960" width="720" height="960">
+  <defs>
+    <linearGradient id="mist" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="40%" stop-color="#e2e8f0"/>
+      <stop offset="70%" stop-color="#ccfbf1"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="960" fill="url(#mist)"/>
+  <path d="M 0,380 Q 180,300 360,340 Q 540,290 720,330 L 720,500 L 0,500 Z" fill="#94a3b8" opacity="0.4"/>
+  <polygon points="40,420 180,380 240,410 240,620 40,620" fill="#f1f5f9"/>
+  <polygon points="20,420 180,370 200,420" fill="#334155"/>
+  <rect x="70" y="460" width="40" height="60" rx="3" fill="#475569"/>
+  <rect x="140" y="460" width="40" height="60" rx="3" fill="#475569"/>
+  <line x1="180" y1="410" x2="180" y2="435" stroke="#1e293b" stroke-width="2"/>
+  <ellipse cx="180" cy="450" rx="14" ry="18" fill="#dc2626"/>
+  <ellipse cx="180" cy="450" rx="6" ry="18" fill="#f59e0b"/>
+  <polygon points="520,400 680,370 720,390 720,620 520,620" fill="#f8fafc"/>
+  <polygon points="500,400 680,360 700,400" fill="#334155"/>
+  <rect x="560" y="450" width="45" height="65" rx="3" fill="#475569"/>
+  <path d="M 180,560 Q 360,420 540,560 L 540,640 Q 360,530 180,640 Z" fill="#64748b"/>
+  <path d="M 220,640 Q 360,510 500,640 Z" fill="#0d9488"/>
+  <rect x="0" y="600" width="720" height="270" fill="#115e59"/>
+  <path d="M 0,600 Q 360,580 720,600 L 720,870 L 0,870 Z" fill="#134e4a"/>
+  <path d="M 310,680 Q 360,660 440,680 Q 450,710 430,715 L 320,715 Q 300,710 310,680 Z" fill="#451a03"/>
+  <path d="M 345,680 Q 380,640 415,680 Z" fill="#1c1917"/>
+  <line x1="315" y1="695" x2="270" y2="730" stroke="#78350f" stroke-width="5"/>
+  <path d="M 0,100 Q 140,80 240,160" stroke="#334155" stroke-width="6" fill="none"/>
+  <path d="M 60,110 Q 70,220 50,320" stroke="#15803d" stroke-width="2.5" fill="none"/>
+  <path d="M 120,120 Q 140,240 120,350" stroke="#15803d" stroke-width="2.5" fill="none"/>
+  <path d="M 180,140 Q 200,260 170,360" stroke="#15803d" stroke-width="2" fill="none"/>
+  <rect x="590" y="160" width="60" height="60" fill="#b91c1c" rx="5"/>
+  <text x="620" y="202" font-family="'Noto Serif SC', serif" font-size="24" font-weight="bold" fill="#ffffff" text-anchor="middle">乌镇</text>
+  <rect x="0" y="870" width="720" height="90" fill="#ffffff" opacity="0.96"/>
+  <text x="36" y="915" font-family="system-ui, sans-serif" font-size="22" font-weight="bold" fill="#0f172a">AURORA 16 · 华智大师影像 50MP</text>
+  <text x="36" y="942" font-family="monospace" font-size="15" fill="#64748b">WUZHEN WATER TOWN · 2026.10.15 · f/2.0</text>
+  <circle cx="670" cy="915" r="18" fill="#dc2626"/>
+  <text x="670" y="922" font-family="serif" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="middle">50MP</text>
+</svg>`)}`;
+
 export const INITIAL_PHOTOS: Photo[] = [
   {
     id: 'photo_1',
-    url: 'https://images.unsplash.com/photo-1508873696983-2df5293cb325?auto=format&fit=crop&w=800&q=80',
+    url: SVG_SHANGHAI,
     title: '上海外滩夜色 (Shanghai)',
     date: '2026-11-02',
     location: '上海 · 外滩',
@@ -166,7 +307,7 @@ export const INITIAL_PHOTOS: Photo[] = [
   },
   {
     id: 'photo_2',
-    url: 'https://images.unsplash.com/photo-1547981609-4b6bfe67ca0b?auto=format&fit=crop&w=800&q=80',
+    url: SVG_FORBIDDEN_CITY,
     title: '故宫红墙白雪 (Forbidden City)',
     date: '2026-10-28',
     location: '北京 · 故宫博物院',
@@ -174,7 +315,7 @@ export const INITIAL_PHOTOS: Photo[] = [
   },
   {
     id: 'photo_3',
-    url: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=800&q=80',
+    url: SVG_WUZHEN,
     title: '江南水乡晨雾 (Water Town)',
     date: '2026-10-15',
     location: '浙江 · 乌镇',

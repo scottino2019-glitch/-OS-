@@ -8,7 +8,17 @@ import {
   Sparkles,
   Trash2,
   ChevronLeft,
-  Upload
+  Upload,
+  Sliders,
+  RotateCw,
+  FlipHorizontal,
+  Download,
+  Check,
+  X,
+  Type,
+  Sun,
+  Contrast,
+  RefreshCw
 } from 'lucide-react';
 
 const CAMERA_WATERMARKS = [
@@ -17,25 +27,80 @@ const CAMERA_WATERMARKS = [
   'HUAZHI OPTICS · 50MP PRO SENSOR'
 ];
 
-const FILTERS = [
-  { name: '原图', css: 'none' },
-  { name: '赛博', css: 'contrast(125%) saturate(140%) hue-rotate(15deg)' },
-  { name: '胶片', css: 'sepia(30%) contrast(110%) brightness(95%)' },
-  { name: '黑白', css: 'grayscale(100%) contrast(130%)' },
-  { name: '清新', css: 'brightness(110%) saturate(85%) contrast(90%)' }
+interface FilterPreset {
+  name: string;
+  nameIt: string;
+  css: string;
+  tag: string;
+}
+
+const FILTERS: FilterPreset[] = [
+  { name: '原图', nameIt: 'Originale', css: 'none', tag: 'Std' },
+  { name: '赛博', nameIt: 'Cyberpunk', css: 'contrast(125%) saturate(140%) hue-rotate(15deg)', tag: 'Neon' },
+  { name: '胶片', nameIt: 'Pellicola', css: 'sepia(30%) contrast(110%) brightness(95%)', tag: 'Retro' },
+  { name: '黑白', nameIt: 'Bianco & Nero', css: 'grayscale(100%) contrast(130%)', tag: 'B&W' },
+  { name: '清新', nameIt: 'Fresco', css: 'brightness(110%) saturate(85%) contrast(90%)', tag: 'Fresh' },
+  { name: '暖阳', nameIt: 'Caldo', css: 'sepia(25%) saturate(130%) brightness(105%)', tag: 'Warm' },
+  { name: '冷翠', nameIt: 'Smeraldo', css: 'hue-rotate(-20deg) saturate(115%) contrast(105%)', tag: 'Cool' }
 ];
 
 export const GalleryApp: React.FC = () => {
-  const { photos, addPhoto, deletePhoto, updateSettings, t, showToast } = usePhone();
+  const { photos, addPhoto, updatePhoto, deletePhoto, updateSettings, t, showToast } = usePhone();
 
   const [mode, setMode] = useState<'gallery' | 'camera'>('gallery');
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
-  const [selectedFilterIdx, setSelectedFilterIdx] = useState(0);
-  const [watermarkIdx, setWatermarkIdx] = useState(0);
 
-  // Webcam stream reference
+  // Live Camera State
+  const [cameraFilterIdx, setCameraFilterIdx] = useState(0);
+  const [cameraWatermarkIdx, setCameraWatermarkIdx] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState(false);
+
+  // Photo Editor State
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTab, setEditTab] = useState<'filters' | 'adjust' | 'transform' | 'watermark'>('filters');
+  const [editFilterIdx, setEditFilterIdx] = useState(0);
+  const [brightness, setBrightness] = useState(100);
+  const [contrast, setContrast] = useState(100);
+  const [saturation, setSaturation] = useState(100);
+  const [sepia, setSepia] = useState(0);
+  const [rotation, setRotation] = useState(0);
+  const [flipH, setFlipH] = useState(false);
+  const [watermarkEnabled, setWatermarkEnabled] = useState(false);
+  const [editWatermarkIdx, setEditWatermarkIdx] = useState(0);
+  const [isProcessingSave, setIsProcessingSave] = useState(false);
+
+  // Initialize or reset editor state when editing a photo
+  const openEditor = (photo: Photo) => {
+    sound.playTap();
+    setEditFilterIdx(0);
+    setBrightness(100);
+    setContrast(100);
+    setSaturation(100);
+    setSepia(0);
+    setRotation(0);
+    setFlipH(false);
+    setWatermarkEnabled(false);
+    setEditWatermarkIdx(0);
+    setEditTab('filters');
+    setIsEditing(true);
+  };
+
+  const closeEditor = () => {
+    sound.playTap();
+    setIsEditing(false);
+  };
+
+  const resetAdjustments = () => {
+    sound.playTap();
+    setBrightness(100);
+    setContrast(100);
+    setSaturation(100);
+    setSepia(0);
+    setRotation(0);
+    setFlipH(false);
+    setEditFilterIdx(0);
+  };
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -60,6 +125,159 @@ export const GalleryApp: React.FC = () => {
     };
   }, [mode]);
 
+  // Combined CSS filter string for live preview
+  const getCombinedFilterCss = (presetIdx: number) => {
+    const preset = FILTERS[presetIdx];
+    const parts: string[] = [];
+    if (preset && preset.css !== 'none') {
+      parts.push(preset.css);
+    }
+    if (brightness !== 100) parts.push(`brightness(${brightness}%)`);
+    if (contrast !== 100) parts.push(`contrast(${contrast}%)`);
+    if (saturation !== 100) parts.push(`saturate(${saturation}%)`);
+    if (sepia > 0) parts.push(`sepia(${sepia}%)`);
+    return parts.length > 0 ? parts.join(' ') : 'none';
+  };
+
+  // Render canvas with all edits baked in
+  const generateEditedImageDataUrl = async (): Promise<string | null> => {
+    if (!selectedPhoto) return null;
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const isSwapped = rotation === 90 || rotation === 270;
+        const origW = img.naturalWidth || img.width || 720;
+        const origH = img.naturalHeight || img.height || 960;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = isSwapped ? origH : origW;
+        canvas.height = isSwapped ? origW : origH;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+
+        // Apply filters
+        ctx.filter = getCombinedFilterCss(editFilterIdx);
+
+        // Transform (Rotation & Flip)
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((rotation * Math.PI) / 180);
+        if (flipH) {
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(img, -origW / 2, -origH / 2, origW, origH);
+        ctx.restore();
+
+        // Watermark Banner (if enabled)
+        if (watermarkEnabled) {
+          ctx.filter = 'none';
+          const bannerH = Math.max(70, Math.round(canvas.height * 0.085));
+          const bannerY = canvas.height - bannerH;
+
+          // White frosted banner
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.fillRect(0, bannerY, canvas.width, bannerH);
+
+          // Top divider line
+          ctx.fillStyle = 'rgba(226, 232, 240, 0.9)';
+          ctx.fillRect(0, bannerY, canvas.width, 2);
+
+          // Text labels
+          ctx.fillStyle = '#0f172a';
+          ctx.font = `bold ${Math.max(16, Math.round(bannerH * 0.28))}px system-ui, -apple-system, sans-serif`;
+          ctx.fillText(CAMERA_WATERMARKS[editWatermarkIdx], 24, bannerY + bannerH * 0.44);
+
+          ctx.fillStyle = '#64748b';
+          ctx.font = `${Math.max(12, Math.round(bannerH * 0.20))}px monospace`;
+          const nowStr = new Date().toLocaleTimeString();
+          ctx.fillText(`AURORA 16 · ${FILTERS[editFilterIdx].name} · ${nowStr}`, 24, bannerY + bannerH * 0.76);
+
+          // Red Leica / Zeiss Badge dot
+          const badgeR = Math.round(bannerH * 0.24);
+          const badgeX = canvas.width - badgeR - 24;
+          const badgeY = bannerY + bannerH * 0.5;
+          ctx.fillStyle = '#dc2626';
+          ctx.beginPath();
+          ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `bold ${Math.round(badgeR * 0.9)}px serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('徠', badgeX, badgeY);
+        }
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        resolve(dataUrl);
+      };
+      img.onerror = () => {
+        resolve(null);
+      };
+      img.src = selectedPhoto.url;
+    });
+  };
+
+  const handleSaveOverwrite = async () => {
+    if (!selectedPhoto) return;
+    setIsProcessingSave(true);
+    const editedUrl = await generateEditedImageDataUrl();
+    setIsProcessingSave(false);
+
+    if (editedUrl) {
+      updatePhoto(selectedPhoto.id, {
+        url: editedUrl,
+        filter: FILTERS[editFilterIdx].name
+      });
+      setSelectedPhoto(prev => prev ? { ...prev, url: editedUrl, filter: FILTERS[editFilterIdx].name } : null);
+      setIsEditing(false);
+      showToast('照片修改已保存 (Modifiche Salvate)');
+    } else {
+      showToast('保存失败，请重试');
+    }
+  };
+
+  const handleSaveAsCopy = async () => {
+    if (!selectedPhoto) return;
+    setIsProcessingSave(true);
+    const editedUrl = await generateEditedImageDataUrl();
+    setIsProcessingSave(false);
+
+    if (editedUrl) {
+      addPhoto({
+        url: editedUrl,
+        title: `${selectedPhoto.title} · ${FILTERS[editFilterIdx].name}`,
+        location: selectedPhoto.location,
+        filter: FILTERS[editFilterIdx].name,
+        isUserPhoto: true
+      });
+      setIsEditing(false);
+      showToast('已保存为新照片 (Copia Salvata)');
+    } else {
+      showToast('生成新照片失败');
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!selectedPhoto) return;
+    const urlToDownload = isEditing ? await generateEditedImageDataUrl() : selectedPhoto.url;
+    if (!urlToDownload) return;
+
+    const link = document.createElement('a');
+    link.href = urlToDownload;
+    link.download = `${selectedPhoto.title || 'photo'}_edited.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('照片已下载到设备 (Foto Scaricata)');
+  };
+
   const takeSnapshot = () => {
     sound.playShutter();
     const canvas = document.createElement('canvas');
@@ -69,7 +287,7 @@ export const GalleryApp: React.FC = () => {
     if (!ctx) return;
 
     if (hasCameraPermission && videoRef.current) {
-      ctx.filter = FILTERS[selectedFilterIdx].css;
+      ctx.filter = FILTERS[cameraFilterIdx].css;
       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
     } else {
       const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
@@ -92,25 +310,25 @@ export const GalleryApp: React.FC = () => {
 
     // Draw Watermark at bottom
     ctx.filter = 'none';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
     ctx.fillRect(0, canvas.height - 90, canvas.width, 90);
 
     ctx.fillStyle = '#0f172a';
     ctx.font = 'bold 22px system-ui, sans-serif';
-    ctx.fillText(CAMERA_WATERMARKS[watermarkIdx], 32, canvas.height - 48);
+    ctx.fillText(CAMERA_WATERMARKS[cameraWatermarkIdx], 32, canvas.height - 48);
 
     ctx.fillStyle = '#64748b';
     ctx.font = '16px monospace';
     const nowStr = new Date().toLocaleTimeString();
     ctx.fillText(`SHOT ON AURORA 16 · ${nowStr}`, 32, canvas.height - 24);
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
 
     addPhoto({
       url: dataUrl,
-      title: `极光快照 · ${FILTERS[selectedFilterIdx].name}`,
+      title: `极光快照 · ${FILTERS[cameraFilterIdx].name}`,
       location: '极光镜头 · 拍摄',
-      filter: FILTERS[selectedFilterIdx].name,
+      filter: FILTERS[cameraFilterIdx].name,
       isUserPhoto: true
     });
 
@@ -138,41 +356,390 @@ export const GalleryApp: React.FC = () => {
 
   const handleSetWallpaper = (photo: Photo) => {
     updateSettings({ wallpaper: photo.url });
-    showToast('已设为手机壁纸');
+    sound.playSuccess();
+    showToast('已设为手机壁纸 (Impostato come Sfondo)');
   };
 
-  // Full Screen Photo Detail
-  if (selectedPhoto) {
+  // ==================== 1. FULL SCREEN PHOTO EDITOR ====================
+  if (selectedPhoto && isEditing) {
+    const liveFilterCss = getCombinedFilterCss(editFilterIdx);
+
     return (
-      <div className="flex flex-col h-full bg-slate-900 text-white">
-        <div className="flex items-center justify-between px-4 py-3 bg-slate-900/90 border-b border-slate-800 z-10">
+      <div className="flex flex-col h-full bg-stone-950 text-white select-none">
+        {/* Editor Top Bar */}
+        <div className="flex items-center justify-between px-3.5 py-2.5 bg-stone-900 border-b border-stone-800 shrink-0 z-20">
+          <button
+            onClick={closeEditor}
+            disabled={isProcessingSave}
+            className="flex items-center gap-1 text-xs font-bold text-stone-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 active:scale-95 transition-all"
+          >
+            <X size={15} />
+            <span>{t('取消', 'Annulla')}</span>
+          </button>
+
+          <div className="text-center">
+            <span className="text-xs font-bold text-stone-200 flex items-center gap-1.5">
+              <Sliders size={14} className="text-amber-400" />
+              <span>{t('照片编辑器', 'Modifica Foto')}</span>
+            </span>
+            <span className="text-[10px] text-stone-500 block truncate max-w-[150px]">
+              {selectedPhoto.title}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleSaveAsCopy}
+              disabled={isProcessingSave}
+              className="text-[11px] font-bold text-amber-300 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 px-2.5 py-1.5 rounded-lg active:scale-95 transition-all disabled:opacity-50"
+              title="Salva come nuova foto"
+            >
+              {t('另存新片', 'Copia')}
+            </button>
+            <button
+              onClick={handleSaveOverwrite}
+              disabled={isProcessingSave}
+              className="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-lg shadow-xs active:scale-95 transition-all flex items-center gap-1 disabled:opacity-50"
+              title="Sovrascrivi foto originale"
+            >
+              <Check size={14} />
+              <span>{t('完成保存', 'Salva')}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Live Preview Canvas Viewport */}
+        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-3 bg-stone-950">
+          <div className="relative max-h-full max-w-full flex items-center justify-center overflow-hidden rounded-2xl shadow-2xl border border-stone-800">
+            <img
+              src={selectedPhoto.url}
+              alt="Preview"
+              style={{
+                filter: liveFilterCss,
+                transform: `rotate(${rotation}deg) scaleX(${flipH ? -1 : 1})`,
+                transition: 'filter 0.15s ease, transform 0.2s ease'
+              }}
+              className="max-h-[50vh] max-w-full object-contain pointer-events-none"
+            />
+
+            {/* Live Watermark Overlay (if enabled) */}
+            {watermarkEnabled && (
+              <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md px-3 py-2 text-stone-900 border-t border-stone-200 flex items-center justify-between shadow-lg">
+                <div className="min-w-0 pr-2">
+                  <div className="font-bold text-[11px] text-stone-900 truncate">
+                    {CAMERA_WATERMARKS[editWatermarkIdx]}
+                  </div>
+                  <div className="text-[9px] text-stone-500 font-mono">
+                    AURORA 16 · {FILTERS[editFilterIdx].name} · {FILTERS[editFilterIdx].nameIt}
+                  </div>
+                </div>
+                <div className="w-5 h-5 rounded-full bg-red-600 text-white font-serif text-[10px] flex items-center justify-center font-bold shrink-0">
+                  徠
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Quick Download Button in Editor */}
+          <button
+            onClick={handleDownload}
+            title="Scarica immagine modificata"
+            className="absolute top-4 right-4 p-2 bg-stone-900/80 hover:bg-stone-800 text-stone-300 hover:text-white rounded-xl border border-stone-700/80 shadow-md active:scale-95 transition-all"
+          >
+            <Download size={16} />
+          </button>
+        </div>
+
+        {/* Editor Controls & Toolbars */}
+        <div className="bg-stone-900 border-t border-stone-800 shrink-0">
+          {/* Sub-panel Content based on active tab */}
+          <div className="p-3 min-h-[100px]">
+            {/* 1. FILTERS TAB */}
+            {editTab === 'filters' && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-stone-400 px-1 font-semibold">
+                  <span>{t('滤镜预设 (Filtri Colore)', 'Seleziona Filtro')}</span>
+                  <span className="text-[10px] text-amber-400 font-mono">
+                    {FILTERS[editFilterIdx].name} ({FILTERS[editFilterIdx].nameIt})
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto slim-scrollbar py-1 touch-scroll">
+                  {FILTERS.map((f, idx) => (
+                    <button
+                      key={f.name}
+                      onClick={() => setEditFilterIdx(idx)}
+                      className={`flex flex-col items-center gap-1 p-2 rounded-xl border shrink-0 transition-all cursor-pointer active:scale-95 ${
+                        editFilterIdx === idx
+                          ? 'bg-amber-400/15 border-amber-400 text-amber-300 ring-2 ring-amber-400/40'
+                          : 'bg-stone-800/80 border-stone-700 text-stone-300 hover:bg-stone-800 hover:border-stone-600'
+                      }`}
+                    >
+                      <div
+                        className="w-11 h-11 rounded-lg overflow-hidden border border-stone-600/60 relative"
+                        style={{ filter: f.css }}
+                      >
+                        <img
+                          src={selectedPhoto.url}
+                          alt={f.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <span className="text-[11px] font-bold leading-tight">{f.name}</span>
+                      <span className="text-[9px] text-stone-400 leading-tight">{f.nameIt}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 2. ADJUST TAB */}
+            {editTab === 'adjust' && (
+              <div className="space-y-3 px-1">
+                <div className="flex items-center justify-between text-xs text-stone-400 font-semibold">
+                  <span>{t('光影与色彩微调 (Regolazioni)', 'Regolazioni Manuali')}</span>
+                  <button
+                    onClick={resetAdjustments}
+                    className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 active:scale-95"
+                  >
+                    <RefreshCw size={12} />
+                    <span>{t('重置', 'Reset')}</span>
+                  </button>
+                </div>
+
+                {/* Brightness Slider */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 text-stone-300">
+                      <Sun size={14} className="text-amber-400" />
+                      <span>{t('亮度 (Luminosità)', 'Luminosità')}</span>
+                    </span>
+                    <span className="font-mono text-stone-400 text-[11px]">{brightness}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="50"
+                    max="160"
+                    value={brightness}
+                    onChange={e => setBrightness(Number(e.target.value))}
+                    className="w-full accent-amber-400 h-1.5 bg-stone-800 rounded-lg cursor-pointer"
+                  />
+                </div>
+
+                {/* Contrast Slider */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 text-stone-300">
+                      <Contrast size={14} className="text-sky-400" />
+                      <span>{t('对比度 (Contrasto)', 'Contrasto')}</span>
+                    </span>
+                    <span className="font-mono text-stone-400 text-[11px]">{contrast}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="60"
+                    max="160"
+                    value={contrast}
+                    onChange={e => setContrast(Number(e.target.value))}
+                    className="w-full accent-sky-400 h-1.5 bg-stone-800 rounded-lg cursor-pointer"
+                  />
+                </div>
+
+                {/* Saturation Slider */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 text-stone-300">
+                      <Sparkles size={14} className="text-pink-400" />
+                      <span>{t('饱和度 (Saturazione)', 'Saturazione')}</span>
+                    </span>
+                    <span className="font-mono text-stone-400 text-[11px]">{saturation}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="200"
+                    value={saturation}
+                    onChange={e => setSaturation(Number(e.target.value))}
+                    className="w-full accent-pink-400 h-1.5 bg-stone-800 rounded-lg cursor-pointer"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 3. TRANSFORM TAB */}
+            {editTab === 'transform' && (
+              <div className="space-y-3">
+                <div className="text-xs text-stone-400 px-1 font-semibold">
+                  {t('旋转与对称变换 (Ruota & Rifletti)', 'Trasformazione')}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setRotation(prev => (prev + 90) % 360)}
+                    className="flex items-center justify-center gap-2 py-3 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-xl font-bold text-xs active:scale-95 transition-all cursor-pointer"
+                  >
+                    <RotateCw size={17} className="text-amber-400" />
+                    <span>{t('顺时针旋转 90°', 'Ruota 90°')}</span>
+                    <span className="text-[10px] text-stone-400 font-mono">({rotation}°)</span>
+                  </button>
+
+                  <button
+                    onClick={() => setFlipH(prev => !prev)}
+                    className={`flex items-center justify-center gap-2 py-3 border rounded-xl font-bold text-xs active:scale-95 transition-all cursor-pointer ${
+                      flipH
+                        ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
+                        : 'bg-stone-800 hover:bg-stone-700 border-stone-700 text-stone-300'
+                    }`}
+                  >
+                    <FlipHorizontal size={17} className="text-sky-400" />
+                    <span>{t('水平镜像翻转', 'Rifletti Specchio')}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 4. WATERMARK TAB */}
+            {editTab === 'watermark' && (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between text-xs text-stone-400 px-1 font-semibold">
+                  <span>{t('大师镜头水印条 (Filigrana Leica / Zeiss)', 'Filigrana')}</span>
+                  <button
+                    onClick={() => setWatermarkEnabled(prev => !prev)}
+                    className={`text-xs font-bold px-3 py-1 rounded-full border transition-all ${
+                      watermarkEnabled
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                        : 'bg-stone-800 border-stone-700 text-stone-400'
+                    }`}
+                  >
+                    {watermarkEnabled ? t('已启用水印', 'Attiva') : t('已关闭水印', 'Disattiva')}
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  {CAMERA_WATERMARKS.map((wm, idx) => (
+                    <button
+                      key={wm}
+                      onClick={() => {
+                        setEditWatermarkIdx(idx);
+                        setWatermarkEnabled(true);
+                      }}
+                      className={`w-full text-left p-2.5 rounded-xl border text-xs font-medium transition-all flex items-center justify-between ${
+                        watermarkEnabled && editWatermarkIdx === idx
+                          ? 'bg-amber-400/15 border-amber-400 text-amber-200 font-bold'
+                          : 'bg-stone-800/80 border-stone-700 text-stone-300 hover:bg-stone-800'
+                      }`}
+                    >
+                      <span className="truncate">{wm}</span>
+                      {watermarkEnabled && editWatermarkIdx === idx && (
+                        <Check size={14} className="text-amber-400 shrink-0 ml-1.5" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Tabs Switcher */}
+          <div className="grid grid-cols-4 border-t border-stone-800 py-1 bg-stone-950">
+            <button
+              onClick={() => setEditTab('filters')}
+              className={`flex flex-col items-center py-1.5 text-xs font-bold transition-colors ${
+                editTab === 'filters' ? 'text-amber-400' : 'text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              <Sparkles size={16} />
+              <span className="text-[10px] mt-0.5">{t('滤镜', 'Filtri')}</span>
+            </button>
+
+            <button
+              onClick={() => setEditTab('adjust')}
+              className={`flex flex-col items-center py-1.5 text-xs font-bold transition-colors ${
+                editTab === 'adjust' ? 'text-amber-400' : 'text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              <Sliders size={16} />
+              <span className="text-[10px] mt-0.5">{t('光影', 'Regola')}</span>
+            </button>
+
+            <button
+              onClick={() => setEditTab('transform')}
+              className={`flex flex-col items-center py-1.5 text-xs font-bold transition-colors ${
+                editTab === 'transform' ? 'text-amber-400' : 'text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              <RotateCw size={16} />
+              <span className="text-[10px] mt-0.5">{t('旋转', 'Ruota')}</span>
+            </button>
+
+            <button
+              onClick={() => setEditTab('watermark')}
+              className={`flex flex-col items-center py-1.5 text-xs font-bold transition-colors ${
+                editTab === 'watermark' ? 'text-amber-400' : 'text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              <Type size={16} />
+              <span className="text-[10px] mt-0.5">{t('水印', 'Filigrana')}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== 2. PHOTO DETAIL VIEW (WITH EDIT BUTTON) ====================
+  if (selectedPhoto && !isEditing) {
+    return (
+      <div className="flex flex-col h-full bg-slate-950 text-white select-none">
+        {/* Detail Top Bar */}
+        <div className="flex items-center justify-between px-3.5 py-3 bg-slate-900/90 border-b border-slate-800 z-10 shrink-0">
           <button
             onClick={() => setSelectedPhoto(null)}
-            className="flex items-center gap-1 text-sm font-bold text-white hover:text-slate-200"
+            className="flex items-center gap-1 text-sm font-bold text-white hover:text-slate-200 active:scale-95 transition-all"
           >
             <ChevronLeft size={22} />
             <span>{t('返回相册', 'Galleria')}</span>
           </button>
+
           <div className="flex items-center gap-2">
+            {/* PROMINENT EDIT BUTTON */}
+            <button
+              onClick={() => openEditor(selectedPhoto)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-xl shadow-xs transition-all active:scale-95"
+              title="Modifica questa foto (Filtri, Regolazioni, Filigrana, Rotazione)"
+            >
+              <Sliders size={15} />
+              <span>{t('编辑修图', 'Modifica')}</span>
+            </button>
+
             <button
               onClick={() => handleSetWallpaper(selectedPhoto)}
-              className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold transition-colors shadow-xs"
+              className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold transition-all shadow-xs active:scale-95"
             >
-              {t('设为壁纸', 'Imposta sfondo')}
+              {t('设为壁纸', 'Sfondo')}
             </button>
+
+            <button
+              onClick={handleDownload}
+              title="Scarica foto sul dispositivo"
+              className="p-2 text-slate-300 hover:bg-slate-800 rounded-xl transition-colors active:scale-95"
+            >
+              <Download size={17} />
+            </button>
+
             <button
               onClick={() => {
                 deletePhoto(selectedPhoto.id);
                 setSelectedPhoto(null);
               }}
-              className="p-2 text-rose-400 hover:bg-rose-500/20 rounded-xl transition-colors"
+              title="Elimina foto"
+              className="p-2 text-rose-400 hover:bg-rose-500/20 rounded-xl transition-colors active:scale-95"
             >
-              <Trash2 size={18} />
+              <Trash2 size={17} />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 flex items-center justify-center p-3 overflow-hidden bg-black/40">
+        {/* Photo Viewport */}
+        <div className="flex-1 flex items-center justify-center p-3 overflow-hidden bg-black/50">
           <img
             src={selectedPhoto.url}
             alt={selectedPhoto.title}
@@ -180,35 +747,43 @@ export const GalleryApp: React.FC = () => {
           />
         </div>
 
-        <div className="p-4 bg-slate-900 border-t border-slate-800 text-xs text-slate-300 space-y-1">
-          <div className="text-white font-bold text-base">{selectedPhoto.title}</div>
+        {/* Photo Metadata Footer */}
+        <div className="p-4 bg-slate-900 border-t border-slate-800 text-xs text-slate-300 space-y-1.5 shrink-0">
+          <div className="flex items-center justify-between">
+            <span className="text-white font-bold text-base">{selectedPhoto.title}</span>
+            {selectedPhoto.filter && (
+              <span className="text-[10px] bg-amber-400/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-400/30">
+                {selectedPhoto.filter}
+              </span>
+            )}
+          </div>
           <div className="flex justify-between text-xs text-slate-400">
             <span>{selectedPhoto.location}</span>
-            <span>{selectedPhoto.date}</span>
+            <span className="font-mono">{selectedPhoto.date}</span>
           </div>
         </div>
       </div>
     );
   }
 
-  // Camera Mode
+  // ==================== 3. CAMERA MODE ====================
   if (mode === 'camera') {
     return (
-      <div className="flex flex-col h-full bg-slate-950 text-white relative">
+      <div className="flex flex-col h-full bg-slate-950 text-white relative select-none">
         {/* Camera Top Bar */}
-        <div className="flex items-center justify-between px-4 py-3 bg-black/50 backdrop-blur-md z-10">
+        <div className="flex items-center justify-between px-4 py-3 bg-black/60 backdrop-blur-md z-10 shrink-0">
           <button
             onClick={() => setMode('gallery')}
-            className="text-xs font-bold text-white px-3 py-1.5 bg-white/20 rounded-xl"
+            className="text-xs font-bold text-white px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-xl active:scale-95 transition-all"
           >
             {t('返回相册', 'Galleria')}
           </button>
 
           <button
-            onClick={() => setWatermarkIdx((watermarkIdx + 1) % CAMERA_WATERMARKS.length)}
+            onClick={() => setCameraWatermarkIdx((cameraWatermarkIdx + 1) % CAMERA_WATERMARKS.length)}
             className="text-xs font-bold text-amber-300 bg-amber-400/20 px-3 py-1 rounded-full border border-amber-400/30 truncate max-w-[200px]"
           >
-            {CAMERA_WATERMARKS[watermarkIdx]}
+            {CAMERA_WATERMARKS[cameraWatermarkIdx]}
           </button>
         </div>
 
@@ -220,12 +795,12 @@ export const GalleryApp: React.FC = () => {
               autoPlay
               playsInline
               muted
-              style={{ filter: FILTERS[selectedFilterIdx].css }}
+              style={{ filter: FILTERS[cameraFilterIdx].css }}
               className="w-full h-full object-cover"
             />
           ) : (
             <div
-              style={{ filter: FILTERS[selectedFilterIdx].css }}
+              style={{ filter: FILTERS[cameraFilterIdx].css }}
               className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-100 via-sky-50 to-emerald-100 p-6 text-center text-slate-900"
             >
               <Sparkles size={52} className="text-amber-500 mb-3 animate-pulse" />
@@ -239,36 +814,37 @@ export const GalleryApp: React.FC = () => {
           )}
 
           {/* Watermark preview overlay */}
-          <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur-md rounded-2xl p-3 text-xs text-slate-800 flex justify-between items-center border border-white/60 shadow-lg">
+          <div className="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur-md rounded-2xl p-3 text-xs text-slate-800 flex justify-between items-center border border-white/60 shadow-lg">
             <span className="font-bold text-slate-900 tracking-wide truncate max-w-[200px]">
-              {CAMERA_WATERMARKS[watermarkIdx]}
+              {CAMERA_WATERMARKS[cameraWatermarkIdx]}
             </span>
             <span className="text-amber-600 font-mono text-xs font-bold">OIS ON</span>
           </div>
         </div>
 
         {/* Filters Picker */}
-        <div className="px-4 py-2 bg-slate-900 flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <div className="px-4 py-2 bg-slate-900 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 touch-scroll">
           {FILTERS.map((f, idx) => (
             <button
               key={f.name}
-              onClick={() => setSelectedFilterIdx(idx)}
-              className={`text-xs px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-colors ${
-                selectedFilterIdx === idx
+              onClick={() => setCameraFilterIdx(idx)}
+              className={`text-xs px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-colors active:scale-95 ${
+                cameraFilterIdx === idx
                   ? 'bg-amber-400 text-slate-950'
                   : 'bg-white/10 text-slate-300'
               }`}
             >
-              {f.name}
+              {f.name} ({f.nameIt})
             </button>
           ))}
         </div>
 
         {/* Shutter Controls */}
-        <div className="p-4 bg-black flex items-center justify-around">
+        <div className="p-4 bg-black flex items-center justify-around shrink-0">
           <button
             onClick={() => setMode('gallery')}
-            className="w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center text-slate-200"
+            className="w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 active:scale-95 transition-all"
+            title="Galleria"
           >
             <ImageIcon size={20} />
           </button>
@@ -281,7 +857,7 @@ export const GalleryApp: React.FC = () => {
             <div className="w-full h-full rounded-full bg-white active:bg-amber-400 transition-colors" />
           </button>
 
-          <label className="w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 cursor-pointer">
+          <label className="w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 cursor-pointer active:scale-95 transition-all" title="Importa foto">
             <Upload size={20} />
             <input
               type="file"
@@ -295,11 +871,11 @@ export const GalleryApp: React.FC = () => {
     );
   }
 
-  // Gallery Mode
+  // ==================== 4. MAIN GALLERY GRID ====================
   return (
-    <div className="flex flex-col h-full bg-slate-50 text-slate-900">
+    <div className="flex flex-col h-full bg-slate-50 text-slate-900 select-none">
       {/* Gallery Header */}
-      <div className="px-4 pt-3 pb-2.5 bg-white border-b border-slate-200 flex items-center justify-between">
+      <div className="px-4 pt-3 pb-2.5 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <span>{t('图库与相册', 'Galleria Foto')}</span>
@@ -308,14 +884,14 @@ export const GalleryApp: React.FC = () => {
             </span>
           </h1>
           <p className="text-xs text-slate-500">
-            {t('摄影作品与壁纸精选', 'Foto & Sfondi')}
+            {t('摄影作品与壁纸精选 · 支持修图滤镜', 'Tocca una foto per visualizzare o modificare')}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <label
             title="上传本地图片"
-            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl cursor-pointer transition-colors"
+            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl cursor-pointer transition-colors active:scale-95"
           >
             <Upload size={17} />
             <input
@@ -337,7 +913,7 @@ export const GalleryApp: React.FC = () => {
       </div>
 
       {/* Photos Grid */}
-      <div className="flex-1 overflow-y-auto p-3 slim-scrollbar">
+      <div className="flex-1 overflow-y-auto p-3 slim-scrollbar touch-scroll">
         <div className="grid grid-cols-3 gap-2">
           {photos.map(p => (
             <div

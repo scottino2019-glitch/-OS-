@@ -157,11 +157,18 @@ export const PhoneChassis: React.FC = () => {
   const renderPhoneInner = (isEmbeddedInChassis = false) => (
     <div
       className={`w-full h-full flex flex-col relative select-none touch-scroll ${
-        isCustomImageWallpaper ? 'bg-black/20 backdrop-blur-xs' : wallpaperStyle
+        isCustomImageWallpaper ? 'bg-stone-900 text-stone-100' : wallpaperStyle
       }`}
     >
-      {/* Bamboo & Red Seal Artwork in selected theme */}
-      {!isCustomImageWallpaper && <BambooParchmentWallpaper theme={wallpaperTheme} />}
+      {/* Wallpaper Layer: Custom Photo Wallpaper or Chinese Ink/Bamboo Art */}
+      {isCustomImageWallpaper ? (
+        <div
+          className="absolute inset-0 z-0 bg-cover bg-center pointer-events-none transition-all duration-300"
+          style={{ backgroundImage: `url(${settings.wallpaper})` }}
+        />
+      ) : (
+        <BambooParchmentWallpaper theme={wallpaperTheme} />
+      )}
 
       {/* Top Status Bar */}
       <StatusBar />

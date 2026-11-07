@@ -315,7 +315,7 @@ export const HomeScreen: React.FC = () => {
                   {app.name}
                 </span>
                 <span className="text-[11px] text-stone-700 font-medium truncate max-w-[82px] leading-tight">
-                  {app.subName}
+                  {app.nameIt || app.subName}
                 </span>
               </button>
             );

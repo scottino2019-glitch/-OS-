@@ -32,6 +32,7 @@ export interface EditorFile {
 export interface ExternalApp {
   id: string;
   name: string;
+  nameIt?: string; // Nome dell'applicazione in italiano
   subName: string;
   description: string;
   category: string;
@@ -109,6 +110,7 @@ export type BuiltInAppId =
 export interface AppDefinition {
   id: BuiltInAppId | string;
   name: string;
+  nameIt?: string;
   subName: string;
   icon: string;
   gradient: string;

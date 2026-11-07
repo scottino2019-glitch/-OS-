@@ -59,6 +59,7 @@ interface PhoneContextType {
 
   photos: Photo[];
   addPhoto: (photo: Omit<Photo, 'id' | 'date'>) => void;
+  updatePhoto: (id: string, updates: Partial<Photo>) => void;
   deletePhoto: (id: string) => void;
 
   // Apps & Public link integration
@@ -310,6 +311,12 @@ export const PhoneProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     showToast('已存入手机相册 (Foto Salvata)');
   }, [showToast]);
 
+  const updatePhoto = useCallback((id: string, updates: Partial<Photo>) => {
+    setPhotos(prev => prev.map(p => (p.id === id ? { ...p, ...updates } : p)));
+    sound.playSuccess();
+    showToast('照片已更新 (Foto Modificata)');
+  }, [showToast]);
+
   const deletePhoto = useCallback((id: string) => {
     setPhotos(prev => prev.filter(p => p.id !== id));
     sound.playTap();
@@ -345,29 +352,31 @@ export const PhoneProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ];
         const ICONS = ['Globe', 'Sparkles', 'Gamepad2', 'Palette', 'BookOpen', 'Compass', 'Code'];
 
-        // Normalize both simple format ({ name, url }) and advanced format
+        // Normalize both simple format ({ name, url }) and advanced format with Italian name ({ name, nameIt, url })
         const normalizedApps: ExternalApp[] = data
           .filter(item => item && item.url)
-          .map((item, idx) => ({
-            id: item.id || `app_pub_${idx}_${String(item.name || 'app').replace(/\s+/g, '_')}`,
-            name: item.name || '外部应用',
-            subName: item.subName || 'Web App',
-            description: item.description || '来自 public/apps.json',
-            category: item.category || '工具',
-            icon: item.icon || ICONS[idx % ICONS.length],
-            gradient: item.gradient || GRADIENTS[idx % GRADIENTS.length],
-            url: item.url,
-            displayMode: item.displayMode || 'iframe',
-            badge: item.badge,
-            isPreinstalled: true
-          }));
+          .map((item, idx) => {
+            const italianName = item.nameIt || item.name_it || item.nome_it || item.nomeIt;
+            return {
+              id: item.id || `app_pub_${idx}_${String(item.name || 'app').replace(/\s+/g, '_')}`,
+              name: item.name || '外部应用',
+              nameIt: italianName || undefined,
+              subName: item.subName || italianName || 'Web App',
+              description: item.description || (italianName ? `App: ${italianName}` : '来自 public/apps.json'),
+              category: item.category || '工具',
+              icon: item.icon || ICONS[idx % ICONS.length],
+              gradient: item.gradient || GRADIENTS[idx % GRADIENTS.length],
+              url: item.url,
+              displayMode: item.displayMode || 'iframe',
+              badge: item.badge,
+              isPreinstalled: true
+            };
+          });
 
         setInstalledApps(prev => {
-          // Merge: keep custom user-added apps, update public apps
+          // Merge: keep custom user-added apps, refresh/update public apps from apps.json
           const customApps = prev.filter(a => a.isCustom);
-          const customIds = new Set(customApps.map(a => a.id));
-          const newPublicApps = normalizedApps.filter(d => !customIds.has(d.id));
-          const merged = [...newPublicApps, ...customApps];
+          const merged = [...normalizedApps, ...customApps];
           try {
             localStorage.setItem(STORAGE_KEYS.APPS, JSON.stringify(merged));
           } catch {
@@ -670,6 +679,7 @@ export const PhoneProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deleteEditorFile,
         photos,
         addPhoto,
+        updatePhoto,
         deletePhoto,
         installedApps,
         addCustomApp,

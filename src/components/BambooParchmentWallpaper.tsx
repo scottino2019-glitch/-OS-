@@ -67,7 +67,7 @@ export const BambooParchmentWallpaper: React.FC<BambooWallpaperProps> = ({
           {/* User's Exact Bamboo Painting & Ancient Chinese Pictograms */}
           <svg
             viewBox="0 0 380 720"
-            className="w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover"
             xmlns="http://www.w3.org/2000/svg"
             preserveAspectRatio="xMidYMid slice"
           >
@@ -207,7 +207,7 @@ export const BambooParchmentWallpaper: React.FC<BambooWallpaperProps> = ({
               background: 'linear-gradient(180deg, #f7f3e8 0%, #e2ecd9 30%, #a7cbb0 65%, #2a6152 100%)'
             }}
           />
-          <svg viewBox="0 0 380 720" className="w-full h-full object-cover" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+          <svg viewBox="0 0 380 720" className="absolute inset-0 w-full h-full object-cover" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
             {/* Distant Golden Sun */}
             <circle cx="280" cy="140" r="38" fill="#f59e0b" opacity="0.75" />
 
@@ -252,7 +252,7 @@ export const BambooParchmentWallpaper: React.FC<BambooWallpaperProps> = ({
               background: 'linear-gradient(175deg, #ffffff 0%, #f1f7fe 45%, #e1effe 85%, #d1e5fc 100%)'
             }}
           />
-          <svg viewBox="0 0 380 720" className="w-full h-full object-cover" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+          <svg viewBox="0 0 380 720" className="absolute inset-0 w-full h-full object-cover" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
             {/* Top Ornamental Porcelain Border */}
             <g fill="none" stroke="#1d4ed8" strokeWidth="2.5" opacity="0.65">
               <path d="M 0,25 Q 95,45 190,25 Q 285,45 380,25" />
@@ -302,7 +302,7 @@ export const BambooParchmentWallpaper: React.FC<BambooWallpaperProps> = ({
               background: 'linear-gradient(175deg, #1f1c19 0%, #12100e 45%, #080706 85%, #000000 100%)'
             }}
           />
-          <svg viewBox="0 0 380 720" className="w-full h-full object-cover" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+          <svg viewBox="0 0 380 720" className="absolute inset-0 w-full h-full object-cover" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
             {/* Golden Star & Dust Flecks */}
             <circle cx="80" cy="180" r="1.5" fill="#fef08a" opacity="0.6" />
             <circle cx="280" cy="140" r="2" fill="#fef08a" opacity="0.8" />
@@ -351,7 +351,7 @@ export const BambooParchmentWallpaper: React.FC<BambooWallpaperProps> = ({
               background: 'linear-gradient(175deg, #a8201a 0%, #851812 45%, #600f0a 85%, #420805 100%)'
             }}
           />
-          <svg viewBox="0 0 380 720" className="w-full h-full object-cover" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+          <svg viewBox="0 0 380 720" className="absolute inset-0 w-full h-full object-cover" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
             {/* Imperial Cloud Crest (祥云纹) */}
             <g fill="none" stroke="#fbbf24" strokeWidth="1.5" opacity="0.3">
               <path d="M 40,120 Q 60,100 80,120 Q 100,100 120,120 Q 80,150 40,120 Z" />
