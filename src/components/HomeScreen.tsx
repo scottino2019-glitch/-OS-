@@ -394,7 +394,7 @@ export const HomeScreen: React.FC = () => {
         </button>
 
         <button
-          onClick={() => openApp('gallery')}
+          onClick={() => openApp('camera')}
           title="相机 (Fotocamera)"
           className="w-13 h-13 rounded-[20%] bg-gradient-to-br from-red-600 to-rose-700 flex items-center justify-center text-white shadow-xs squircle active:scale-95 transition-transform"
         >

@@ -64,9 +64,12 @@ export const GalleryApp: React.FC = () => {
   const [cameraWatermarkIdx, setCameraWatermarkIdx] = useState(0);
   const [cameraWatermarkEnabled, setCameraWatermarkEnabled] = useState(true);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const nativeCameraInputRef = useRef<HTMLInputElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const [cameraDirection, setCameraDirection] = useState<'user' | 'environment'>('environment');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [currentDeviceId, setCurrentDeviceId] = useState<string | null>(null);
@@ -75,6 +78,7 @@ export const GalleryApp: React.FC = () => {
   const activeDeviceIndexRef = useRef<number>(0);
   const [activeDeviceIndex, setActiveDeviceIndex] = useState<number>(0);
   const [currentDeviceLabel, setCurrentDeviceLabel] = useState<string>('');
+  const [manualMirror, setManualMirror] = useState<boolean | null>(null);
 
   // Photo Editor State
   const [isEditing, setIsEditing] = useState(false);
@@ -135,6 +139,9 @@ export const GalleryApp: React.FC = () => {
       mediaStreamRef.current = null;
     }
     if (videoRef.current) {
+      try {
+        videoRef.current.pause();
+      } catch {}
       videoRef.current.srcObject = null;
     }
     setMediaStream(null);
@@ -144,30 +151,117 @@ export const GalleryApp: React.FC = () => {
   // Helper to categorize device label as rear or front
   const isDeviceRear = (device: MediaDeviceInfo): boolean => {
     const lbl = (device.label || '').toLowerCase();
-    return (
+    // 1. Explicit rear/back keywords in various languages
+    if (
       lbl.includes('back') ||
       lbl.includes('rear') ||
       lbl.includes('environment') ||
       lbl.includes('posteriore') ||
       lbl.includes('retro') ||
       lbl.includes('derriere') ||
+      lbl.includes('derrière') ||
       lbl.includes('trasera') ||
-      lbl.includes('camera2 1') ||
-      lbl.includes('camera 1')
-    );
+      lbl.includes('traseira') ||
+      lbl.includes('rück') ||
+      lbl.includes('hinter') ||
+      lbl.includes('wide') ||
+      lbl.includes('ultra wide') ||
+      lbl.includes('telephoto') ||
+      lbl.includes('macro') ||
+      lbl.includes('后')
+    ) {
+      if (
+        !lbl.includes('front') &&
+        !lbl.includes('anteriore') &&
+        !lbl.includes('user') &&
+        !lbl.includes('selfie') &&
+        !lbl.includes('face') &&
+        !lbl.includes('avant') &&
+        !lbl.includes('前')
+      ) {
+        return true;
+      }
+    }
+
+    // 2. Android Camera2 numbering:
+    // In Android Camera2 API, Camera ID 0 is the primary BACK camera!
+    // Camera ID 1 is FRONT. Camera ID 2/3 are auxiliary back cameras (ultra-wide/telephoto).
+    if (
+      (lbl.includes('camera2 0') ||
+        lbl.includes('camera 0') ||
+        lbl.includes('camera2 2') ||
+        lbl.includes('camera2 3') ||
+        lbl.includes('camera 2')) &&
+      !lbl.includes('front') &&
+      !lbl.includes('anteriore') &&
+      !lbl.includes('user') &&
+      !lbl.includes('selfie')
+    ) {
+      return true;
+    }
+
+    return false;
   };
 
   const isDeviceFront = (device: MediaDeviceInfo): boolean => {
     const lbl = (device.label || '').toLowerCase();
-    return (
+    if (
       lbl.includes('front') ||
       lbl.includes('user') ||
       lbl.includes('face') ||
       lbl.includes('selfie') ||
       lbl.includes('anteriore') ||
-      lbl.includes('camera2 0') ||
-      lbl.includes('camera 0')
-    );
+      lbl.includes('avant') ||
+      lbl.includes('vorder') ||
+      lbl.includes('delantera') ||
+      lbl.includes('facetime') ||
+      lbl.includes('前')
+    ) {
+      return true;
+    }
+    // Android Camera ID 1 is the front camera
+    if (
+      (lbl.includes('camera2 1') || lbl.includes('camera 1')) &&
+      !lbl.includes('back') &&
+      !lbl.includes('rear') &&
+      !lbl.includes('retro') &&
+      !lbl.includes('posteriore')
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  // Helper to reliably find the rear camera device
+  const findRearDevice = (devices: MediaDeviceInfo[]): { device: MediaDeviceInfo; index: number } | null => {
+    if (!devices || devices.length === 0) return null;
+    // 1. Explicit rear/back label
+    const rearIdx = devices.findIndex(d => isDeviceRear(d));
+    if (rearIdx !== -1) return { device: devices[rearIdx], index: rearIdx };
+
+    // 2. Device that is explicitly NOT front
+    const notFrontIdx = devices.findIndex(d => !isDeviceFront(d));
+    if (notFrontIdx !== -1 && devices.length > 1) return { device: devices[notFrontIdx], index: notFrontIdx };
+
+    // 3. Android convention: on multi-camera devices, index 0 is primary rear
+    if (devices.length > 1) return { device: devices[0], index: 0 };
+    return { device: devices[0], index: 0 };
+  };
+
+  // Helper to reliably find the front camera device
+  const findFrontDevice = (devices: MediaDeviceInfo[]): { device: MediaDeviceInfo; index: number } | null => {
+    if (!devices || devices.length === 0) return null;
+    // 1. Explicit front label
+    const frontIdx = devices.findIndex(d => isDeviceFront(d));
+    if (frontIdx !== -1) return { device: devices[frontIdx], index: frontIdx };
+
+    // 2. Device that is explicitly NOT rear
+    const notRearIdx = devices.findIndex(d => !isDeviceRear(d));
+    if (notRearIdx !== -1 && devices.length > 1) return { device: devices[notRearIdx], index: notRearIdx };
+
+    // 3. Android convention: on multi-camera devices, index 1 is selfie camera
+    if (devices.length > 1) return { device: devices[1], index: 1 };
+    return { device: devices[0], index: 0 };
   };
 
   // Robust stream starter with fallback constraints chain
@@ -178,94 +272,144 @@ export const GalleryApp: React.FC = () => {
   ) => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setHasCameraPermission(false);
+      setCameraError('Il browser in uso non supporta l\'accesso alla fotocamera (getUserMedia non disponibile).');
       return;
     }
 
     setIsSwitchingCamera(true);
+    setCameraError(null);
+    setCameraDirection(targetMode);
     stopCurrentStream();
 
-    // 100ms pause to ensure mobile hardware camera lock is fully relinquished
-    await new Promise(r => setTimeout(r, 100));
+    // 250ms pause to ensure mobile hardware camera lock is fully relinquished by the OS
+    await new Promise(r => setTimeout(r, 250));
 
     let stream: MediaStream | null = null;
 
-    // 1. If targetDeviceId provided, try exact deviceId
-    if (targetDeviceId) {
+    // Helper to safely try getUserMedia with specific constraint
+    const tryConstraints = async (videoConstraint: any): Promise<MediaStream | null> => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: targetDeviceId } },
+        return await navigator.mediaDevices.getUserMedia({
+          video: videoConstraint,
           audio: false
         });
-      } catch (err1) {
-        console.warn('Exact deviceId failed, trying non-exact:', err1);
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: targetDeviceId },
-            audio: false
-          });
-        } catch {
-          stream = null;
+      } catch (err) {
+        console.warn('Constraint attempt failed:', videoConstraint, err);
+        return null;
+      }
+    };
+
+    if (targetMode === 'environment') {
+      // 1. If targetDeviceId provided, try that specific hardware device
+      if (targetDeviceId) {
+        stream = await tryConstraints({ deviceId: { exact: targetDeviceId } });
+        if (!stream) {
+          stream = await tryConstraints({ deviceId: targetDeviceId });
         }
       }
-    }
 
-    // 2. If no deviceId or failed, try targetMode
-    if (!stream) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: targetMode } },
-          audio: false
-        });
-      } catch (err2) {
-        console.warn('Ideal facingMode failed, trying exact facingMode:', err2);
+      // 2. STRICT exact rear constraint (W3C standard: forbids front camera fallback!)
+      if (!stream) {
+        stream = await tryConstraints({ facingMode: { exact: 'environment' } });
+      }
+
+      // 3. If exact failed, search hardware devices for rear sensor
+      if (!stream) {
         try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { exact: targetMode } },
-            audio: false
-          });
-        } catch {
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: targetMode },
-              audio: false
-            });
-          } catch {
-            stream = null;
+          const all = await navigator.mediaDevices.enumerateDevices();
+          const vDevs = all.filter(d => d.kind === 'videoinput');
+          const rearMatch = findRearDevice(vDevs);
+          if (rearMatch && rearMatch.device.deviceId) {
+            stream = await tryConstraints({ deviceId: { exact: rearMatch.device.deviceId } });
+            if (!stream) {
+              stream = await tryConstraints({ deviceId: rearMatch.device.deviceId });
+            }
           }
+        } catch (e) {}
+      }
+
+      // 4. Standard environment facingMode
+      if (!stream) {
+        stream = await tryConstraints({ facingMode: 'environment' });
+      }
+
+      // 5. Permissive fallback (for single webcam devices)
+      if (!stream) {
+        stream = await tryConstraints({ facingMode: { ideal: 'environment' } });
+      }
+    } else {
+      // targetMode === 'user'
+      // 1. If targetDeviceId provided, try exact deviceId
+      if (targetDeviceId) {
+        stream = await tryConstraints({ deviceId: { exact: targetDeviceId } });
+        if (!stream) {
+          stream = await tryConstraints({ deviceId: targetDeviceId });
         }
+      }
+
+      // 2. STRICT exact user constraint
+      if (!stream) {
+        stream = await tryConstraints({ facingMode: { exact: 'user' } });
+      }
+
+      // 3. Find front sensor deviceId
+      if (!stream) {
+        try {
+          const all = await navigator.mediaDevices.enumerateDevices();
+          const vDevs = all.filter(d => d.kind === 'videoinput');
+          const frontMatch = findFrontDevice(vDevs);
+          if (frontMatch && frontMatch.device.deviceId) {
+            stream = await tryConstraints({ deviceId: { exact: frontMatch.device.deviceId } });
+            if (!stream) {
+              stream = await tryConstraints({ deviceId: frontMatch.device.deviceId });
+            }
+          }
+        } catch (e) {}
+      }
+
+      // 4. Standard user facingMode
+      if (!stream) {
+        stream = await tryConstraints({ facingMode: 'user' });
+      }
+
+      // 5. Permissive fallback
+      if (!stream) {
+        stream = await tryConstraints({ facingMode: { ideal: 'user' } });
       }
     }
 
-    // 3. Fallback unconstrained
+    // 6. Final fallback to any available video input
     if (!stream) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false
-        });
-      } catch (err3) {
-        console.error('All camera attempts failed:', err3);
-        setHasCameraPermission(false);
-        setIsSwitchingCamera(false);
-        return;
-      }
+      stream = await tryConstraints(true);
+    }
+
+    // 7. Handle failure gracefully with clear guidance
+    if (!stream) {
+      console.error('All camera attempts failed');
+      setHasCameraPermission(false);
+      setIsSwitchingCamera(false);
+      setCameraError(
+        'Impossibile accedere alla fotocamera. Verifica che i permessi siano concessi nel browser, oppure tocca "Scatta con Fotocamera Nativa" per aprire la fotocamera del tuo telefono.'
+      );
+      return;
     }
 
     mediaStreamRef.current = stream;
     setMediaStream(stream);
     setHasCameraPermission(true);
+    setCameraError(null);
     setIsSwitchingCamera(false);
 
     if (videoRef.current) {
+      videoRef.current.muted = true;
+      videoRef.current.defaultMuted = true;
       videoRef.current.srcObject = stream;
-      videoRef.current.onloadedmetadata = () => {
-        videoRef.current?.play().then(() => {
-          setIsCameraActive(true);
-        }).catch(err => console.warn('Video play error:', err));
-      };
+      videoRef.current.play().then(() => {
+        setIsCameraActive(true);
+      }).catch(err => console.warn('Video play error:', err));
     }
 
-    // Refresh devices list
+    // Refresh devices list with unlocked permissions
     let freshDevices: MediaDeviceInfo[] = [];
     try {
       const all = await navigator.mediaDevices.enumerateDevices();
@@ -294,22 +438,30 @@ export const GalleryApp: React.FC = () => {
     activeDeviceIndexRef.current = activeIdx;
     setActiveDeviceIndex(activeIdx);
     setCurrentDeviceId(freshDevices[activeIdx]?.deviceId || targetDeviceId || null);
-
-    // Determine effective facing mode
-    const trackSettings = activeTrack?.getSettings ? activeTrack.getSettings() : {};
-    let finalFacing = targetMode;
-    if (trackSettings.facingMode) {
-      finalFacing = trackSettings.facingMode as 'user' | 'environment';
-    } else if (trackLabel) {
-      const lower = trackLabel.toLowerCase();
-      if (lower.includes('back') || lower.includes('rear') || lower.includes('environment') || lower.includes('posteriore') || lower.includes('retro')) {
-        finalFacing = 'environment';
-      } else if (lower.includes('front') || lower.includes('user') || lower.includes('face') || lower.includes('selfie') || lower.includes('anteriore')) {
-        finalFacing = 'user';
-      }
-    }
-    setFacingMode(finalFacing);
   }, [stopCurrentStream]);
+
+  // Ensure video element properties for mobile autoplay
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = true;
+      videoRef.current.defaultMuted = true;
+      videoRef.current.setAttribute('playsinline', 'true');
+      videoRef.current.setAttribute('webkit-playsinline', 'true');
+    }
+  }, []);
+
+  // Keep videoRef.srcObject synchronized whenever mediaStream state changes
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (vid && mediaStream) {
+      vid.muted = true;
+      vid.defaultMuted = true;
+      if (vid.srcObject !== mediaStream) {
+        vid.srcObject = mediaStream;
+      }
+      vid.play().then(() => setIsCameraActive(true)).catch(() => {});
+    }
+  }, [mediaStream]);
 
   // Main lifecycle for camera mode
   useEffect(() => {
@@ -336,79 +488,128 @@ export const GalleryApp: React.FC = () => {
 
     showToast(
       isRear
-        ? `📷 Obiettivo Posteriore (#${index + 1})`
-        : `🤳 Obiettivo Frontale (#${index + 1})`
+        ? `📷 Fotocamera Posteriore (#${index + 1})`
+        : `🤳 Fotocamera Frontale (#${index + 1})`
     );
   }, [videoDevices, activateCamera, showToast]);
 
-  // Switch between Rear and Front explicitly
+  // Switch to Rear Camera
   const switchToRearCamera = useCallback(async () => {
     sound.playTap();
-    let rearIdx = videoDevices.findIndex(d => isDeviceRear(d));
-    if (rearIdx === -1 && videoDevices.length > 1) {
-      rearIdx = activeDeviceIndexRef.current === 0 ? 1 : 0;
+    let devs = videoDevices;
+    if (devs.length === 0 && navigator.mediaDevices?.enumerateDevices) {
+      try {
+        const all = await navigator.mediaDevices.enumerateDevices();
+        devs = all.filter(d => d.kind === 'videoinput');
+        setVideoDevices(devs);
+      } catch (e) {}
     }
 
-    if (rearIdx !== -1 && videoDevices[rearIdx]) {
-      await activateCamera('environment', videoDevices[rearIdx].deviceId, rearIdx);
+    const rear = findRearDevice(devs);
+    if (rear && rear.device) {
+      await activateCamera('environment', rear.device.deviceId, rear.index);
     } else {
-      await activateCamera('environment', null, 0);
+      await activateCamera('environment', null);
     }
 
-    showToast('📷 Fotocamera Posteriore (Retro)');
+    if (devs.length === 1) {
+      showToast('📷 Fotocamera Unica (Webcam - Modalità naturale non specchiata)');
+    } else {
+      showToast('📷 Fotocamera Posteriore (Retro)');
+    }
   }, [videoDevices, activateCamera, showToast]);
 
+  // Switch to Front Camera
   const switchToFrontCamera = useCallback(async () => {
     sound.playTap();
-    let frontIdx = videoDevices.findIndex(d => isDeviceFront(d));
-    if (frontIdx === -1 && videoDevices.length > 1) {
-      frontIdx = activeDeviceIndexRef.current === 1 ? 0 : 1;
+    let devs = videoDevices;
+    if (devs.length === 0 && navigator.mediaDevices?.enumerateDevices) {
+      try {
+        const all = await navigator.mediaDevices.enumerateDevices();
+        devs = all.filter(d => d.kind === 'videoinput');
+        setVideoDevices(devs);
+      } catch (e) {}
     }
 
-    if (frontIdx !== -1 && videoDevices[frontIdx]) {
-      await activateCamera('user', videoDevices[frontIdx].deviceId, frontIdx);
+    const front = findFrontDevice(devs);
+    if (front && front.device) {
+      await activateCamera('user', front.device.deviceId, front.index);
     } else {
-      await activateCamera('user', null, 0);
+      await activateCamera('user', null);
     }
 
     showToast('🤳 Fotocamera Frontale (Selfie)');
   }, [videoDevices, activateCamera, showToast]);
 
-  // Toggle button (cycles to the other camera)
+  // Toggle button (cycles between rear and front)
   const handleToggleCamera = useCallback(async () => {
     sound.playTap();
-    if (videoDevices.length > 1) {
-      const currentIdx = activeDeviceIndexRef.current;
-      const nextIdx = (currentIdx + 1) % videoDevices.length;
-      const targetDev = videoDevices[nextIdx];
-      const isRear = isDeviceRear(targetDev);
-      const targetMode: 'user' | 'environment' = isRear ? 'environment' : 'user';
-
-      await activateCamera(targetMode, targetDev.deviceId, nextIdx);
-
-      showToast(
-        isRear
-          ? `📷 Fotocamera Posteriore (#${nextIdx + 1})`
-          : `🤳 Fotocamera Frontale (#${nextIdx + 1})`
-      );
+    if (cameraDirection === 'user') {
+      await switchToRearCamera();
     } else {
-      const nextMode = facingMode === 'environment' ? 'user' : 'environment';
-      await activateCamera(nextMode, null, 0);
-      showToast(
-        nextMode === 'environment'
-          ? '📷 Fotocamera Posteriore (Retro)'
-          : '🤳 Fotocamera Frontale (Selfie)'
-      );
+      await switchToFrontCamera();
     }
-  }, [videoDevices, facingMode, activateCamera, showToast]);
+  }, [cameraDirection, switchToRearCamera, switchToFrontCamera]);
+
+  // Handle photo captured via native phone camera
+  const handleNativeCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    sound.playShutter();
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width || 720;
+        canvas.height = img.naturalHeight || img.height || 960;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.filter = FILTERS[cameraFilterIdx].css;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Draw Watermark at bottom (if enabled)
+        if (cameraWatermarkEnabled) {
+          ctx.filter = 'none';
+          const bannerH = Math.max(70, Math.round(canvas.height * 0.085));
+          const bannerY = canvas.height - bannerH;
+
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.fillRect(0, bannerY, canvas.width, bannerH);
+
+          ctx.fillStyle = '#0f172a';
+          ctx.font = `bold ${Math.max(16, Math.round(bannerH * 0.28))}px system-ui, sans-serif`;
+          ctx.fillText(CAMERA_WATERMARKS[cameraWatermarkIdx], 32, bannerY + bannerH * 0.44);
+
+          ctx.fillStyle = '#64748b';
+          ctx.font = `${Math.max(12, Math.round(bannerH * 0.20))}px monospace`;
+          const nowStr = new Date().toLocaleTimeString();
+          ctx.fillText(`AURORA 16 · FOTOCAMERA POSTERIORE · ${nowStr}`, 32, bannerY + bannerH * 0.76);
+        }
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        addPhoto({
+          url: dataUrl,
+          title: `极光快照 · ${FILTERS[cameraFilterIdx].name}`,
+          location: '极光镜头 · 拍摄',
+          filter: FILTERS[cameraFilterIdx].name,
+          isUserPhoto: true
+        });
+
+        showToast('Foto scattata e salvata nella Galleria!');
+        setMode('gallery');
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   // Derived state to check if selfie mirror mode should be applied
-  const isFacingUser = facingMode === 'user' || (currentDeviceLabel && (
-    currentDeviceLabel.toLowerCase().includes('front') ||
-    currentDeviceLabel.toLowerCase().includes('anteriore') ||
-    currentDeviceLabel.toLowerCase().includes('user') ||
-    currentDeviceLabel.toLowerCase().includes('selfie')
-  ));
+  const isFacingUser = cameraDirection === 'user';
+  const effectiveIsMirrored = manualMirror !== null ? manualMirror : isFacingUser;
 
   // Combined CSS filter string for live preview
   const getCombinedFilterCss = (presetIdx: number) => {
@@ -575,12 +776,12 @@ export const GalleryApp: React.FC = () => {
       canvas.width = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
       ctx.filter = FILTERS[cameraFilterIdx].css;
-      if (isFacingUser) {
+      if (effectiveIsMirrored) {
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
       }
       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-      if (isFacingUser) {
+      if (effectiveIsMirrored) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
       }
     } else {
@@ -1084,7 +1285,7 @@ export const GalleryApp: React.FC = () => {
           >
             <SwitchCamera size={14} className={isSwitchingCamera ? 'animate-spin text-amber-400' : ''} />
             <span>
-              {!isFacingUser ? '📷 Retro' : '🤳 Frontale'}
+              {cameraDirection === 'environment' ? '📷 Retro' : '🤳 Frontale'}
             </span>
             {videoDevices.length > 1 && (
               <span className="text-[10px] bg-white/25 px-1.5 py-0.2 rounded-full text-white/90 font-mono">
@@ -1094,6 +1295,19 @@ export const GalleryApp: React.FC = () => {
           </button>
 
           <div className="flex items-center gap-1.5">
+            {/* Mirror / Specchio toggle button */}
+            <button
+              onClick={() => setManualMirror(prev => (prev === null ? !effectiveIsMirrored : !prev))}
+              className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border transition-all active:scale-95 cursor-pointer ${
+                effectiveIsMirrored
+                  ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
+                  : 'bg-white/10 text-white/70 border-white/20'
+              }`}
+              title="Inverti effetto specchio orizzontale"
+            >
+              {effectiveIsMirrored ? 'Specchio: ON' : 'Specchio: OFF'}
+            </button>
+
             {/* Toggle Watermark on/off cleanly */}
             <button
               onClick={() => setCameraWatermarkEnabled(prev => !prev)}
@@ -1118,16 +1332,43 @@ export const GalleryApp: React.FC = () => {
           </div>
         </div>
 
-        {/* Viewfinder: 100% CLEAN, UNOBSTRUCTED LIVE VIDEO WITH DEDICATED CAMERA SELECTOR */}
-        <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-black">
+        {/* Hidden native camera capture input for guaranteed mobile rear capture */}
+        <input
+          ref={nativeCameraInputRef}
+          type="file"
+          accept="image/*"
+          capture={cameraDirection === 'user' ? 'user' : 'environment'}
+          className="hidden"
+          onChange={handleNativeCapture}
+        />
+
+        {/* Viewfinder: 100% CLEAN, FULL-SCREEN LIVE VIDEO (NEVER COLLAPSES TO A STRIP) */}
+        <div className="flex-1 min-h-0 relative w-full overflow-hidden bg-black flex items-center justify-center">
+          {/* Real Camera Video Element: ALWAYS pinned to absolute inset-0 so it NEVER collapses into a strip */}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{ filter: FILTERS[cameraFilterIdx].css }}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${
+              hasCameraPermission || mediaStream ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            } ${effectiveIsMirrored ? 'scale-x-[-1]' : 'scale-x-1'}`}
+            onLoadedMetadata={e => {
+              const vid = e.target as HTMLVideoElement;
+              vid.muted = true;
+              vid.play().then(() => setIsCameraActive(true)).catch(() => {});
+            }}
+          />
+
           {/* Prominent floating camera direction selector (Posteriore / Frontale) */}
           <div className="absolute top-3 left-0 right-0 z-20 flex flex-col items-center gap-1.5 px-3 pointer-events-none">
-            <div className="bg-black/80 backdrop-blur-md p-1 rounded-2xl border border-white/25 shadow-2xl flex items-center gap-1 pointer-events-auto">
+            <div className="bg-black/85 backdrop-blur-md p-1 rounded-2xl border border-white/25 shadow-2xl flex items-center gap-1 pointer-events-auto">
               <button
                 onClick={switchToRearCamera}
                 disabled={isSwitchingCamera}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
-                  !isFacingUser
+                  cameraDirection === 'environment'
                     ? 'bg-amber-400 text-stone-950 shadow-md ring-2 ring-amber-400/50'
                     : 'text-stone-300 hover:text-white hover:bg-white/10'
                 }`}
@@ -1140,7 +1381,7 @@ export const GalleryApp: React.FC = () => {
                 onClick={switchToFrontCamera}
                 disabled={isSwitchingCamera}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
-                  isFacingUser
+                  cameraDirection === 'user'
                     ? 'bg-amber-400 text-stone-950 shadow-md ring-2 ring-amber-400/50'
                     : 'text-stone-300 hover:text-white hover:bg-white/10'
                 }`}
@@ -1150,10 +1391,10 @@ export const GalleryApp: React.FC = () => {
               </button>
             </div>
 
-            {/* If multiple camera sensors detected on this phone, allow 1-tap direct selection */}
+            {/* Direct 1-tap selection of detected camera sensors */}
             {videoDevices.length > 1 && (
-              <div className="flex items-center gap-1.5 bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/20 pointer-events-auto shadow-md">
-                <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Sensore:</span>
+              <div className="flex items-center gap-1.5 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/20 pointer-events-auto shadow-md max-w-full overflow-x-auto no-scrollbar">
+                <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider shrink-0">Sensore:</span>
                 {videoDevices.map((dev, idx) => {
                   const isCur = activeDeviceIndex === idx;
                   const isRearDev = isDeviceRear(dev);
@@ -1162,9 +1403,9 @@ export const GalleryApp: React.FC = () => {
                       key={dev.deviceId || idx}
                       onClick={() => selectCameraByIndex(idx)}
                       disabled={isSwitchingCamera}
-                      className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold transition-all cursor-pointer active:scale-95 ${
+                      className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold transition-all cursor-pointer active:scale-95 shrink-0 ${
                         isCur
-                          ? 'bg-amber-400 text-stone-950 shadow-xs'
+                          ? 'bg-amber-400 text-stone-950 shadow-xs ring-1 ring-amber-400'
                           : 'bg-white/10 text-stone-300 hover:text-white hover:bg-white/20'
                       }`}
                       title={dev.label || `Sensore camera #${idx + 1}`}
@@ -1175,43 +1416,57 @@ export const GalleryApp: React.FC = () => {
                 })}
               </div>
             )}
+
+            {/* Single camera notice */}
+            {videoDevices.length === 1 && (
+              <div className="bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/15 pointer-events-auto shadow-xs">
+                <span className="text-[10px] text-amber-300 font-medium">
+                  {cameraDirection === 'environment'
+                    ? '📷 Modalità Retro attiva (Webcam non specchiata)'
+                    : '🤳 Modalità Selfie attiva (Webcam specchiata)'}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* Real Camera Video Element: ALWAYS MOUNTED in the DOM so ref is never null */}
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            style={{ filter: FILTERS[cameraFilterIdx].css }}
-            className={`w-full h-full object-cover transition-all duration-300 ${
-              hasCameraPermission || mediaStream ? 'opacity-100' : 'opacity-0 absolute inset-0'
-            } ${isFacingUser ? 'scale-x-[-1]' : 'scale-x-1'}`}
-            onLoadedMetadata={e => {
-              const vid = e.target as HTMLVideoElement;
-              vid.play().then(() => setIsCameraActive(true)).catch(() => {});
-            }}
-          />
-
-          {/* Simple Permission Grant prompt ONLY if no stream and no permission */}
-          {!hasCameraPermission && !mediaStream && (
+          {/* Simple Permission Grant / Error prompt ONLY if no stream and no permission */}
+          {(!hasCameraPermission || !mediaStream) && (
             <div
               style={{ filter: FILTERS[cameraFilterIdx].css }}
-              className="w-full h-full flex flex-col items-center justify-center bg-stone-950 p-6 text-center text-white z-10"
+              className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-stone-950 p-6 text-center text-white z-10"
             >
               <Camera size={44} className="text-amber-400 mb-3" />
               <h3 className="text-base font-bold mb-1">
                 {t('启用相机拍摄', 'Attiva Fotocamera')}
               </h3>
-              <p className="text-xs text-stone-300 max-w-xs font-medium mb-4">
-                {t('请允许浏览器使用摄像头，或点击下方切换镜头', 'Consenti l\'accesso alla fotocamera per visualizzare l\'anteprima in tempo reale')}
+              <p className="text-xs text-stone-300 max-w-xs font-medium mb-4 leading-relaxed">
+                {cameraError || t('请允许浏览器使用摄像头，或点击下方切换镜头', 'Consenti l\'accesso alla fotocamera per visualizzare l\'anteprima in tempo reale')}
               </p>
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                <button
+                  onClick={switchToRearCamera}
+                  disabled={isSwitchingCamera}
+                  className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-stone-950 rounded-xl text-xs font-bold active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                >
+                  <Camera size={16} />
+                  <span>📷 Fotocamera Posteriore (Retro)</span>
+                </button>
+                <button
+                  onClick={switchToFrontCamera}
+                  disabled={isSwitchingCamera}
+                  className="px-4 py-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-bold active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer border border-white/20"
+                >
+                  <span>🤳 Fotocamera Frontale (Selfie)</span>
+                </button>
+              </div>
+
+              {/* Native Mobile Camera trigger button (always works on smartphones) */}
               <button
-                onClick={() => activateCamera('environment', null, 0)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                onClick={() => nativeCameraInputRef.current?.click()}
+                className="mt-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
               >
-                <Camera size={16} />
-                <span>{t('切换 / 连接镜头', 'Connetti Fotocamera')}</span>
+                <Camera size={15} />
+                <span>📸 Scatta con Fotocamera Nativa del Telefono</span>
               </button>
             </div>
           )}
@@ -1244,11 +1499,12 @@ export const GalleryApp: React.FC = () => {
             <ImageIcon size={20} />
           </button>
 
-          {/* Big Shutter button */}
+          {/* Big Shutter button (Live camera preview capture) */}
           <button
             onClick={takeSnapshot}
             disabled={isSwitchingCamera}
-            className="w-18 h-18 rounded-full border-4 border-white/90 p-1 flex items-center justify-center active:scale-95 transition-transform cursor-pointer disabled:opacity-50"
+            className="w-18 h-18 rounded-full border-4 border-white/90 p-1 flex items-center justify-center active:scale-95 transition-transform cursor-pointer disabled:opacity-50 shadow-lg"
+            title="Scatta foto con anteprima"
           >
             <div className="w-full h-full rounded-full bg-white active:bg-amber-400 transition-colors" />
           </button>
@@ -1257,12 +1513,12 @@ export const GalleryApp: React.FC = () => {
           <button
             onClick={handleToggleCamera}
             disabled={isSwitchingCamera}
-            title="Inverti Fotocamera Frontale / Posteriore"
+            title={cameraDirection === 'environment' ? 'Passa a Fotocamera Frontale (Selfie)' : 'Passa a Fotocamera Posteriore (Retro)'}
             className="w-11 h-11 rounded-full bg-slate-800 hover:bg-slate-700 border border-white/20 flex flex-col items-center justify-center text-slate-200 active:scale-95 transition-all cursor-pointer shadow-md"
           >
             <SwitchCamera size={18} className={isSwitchingCamera ? 'animate-spin text-amber-400' : 'text-white'} />
             <span className="text-[8px] font-bold text-slate-300 mt-0.5 leading-none">
-              {!isFacingUser ? 'Retro' : 'Selfie'}
+              {cameraDirection === 'environment' ? 'Passa Selfie' : 'Passa Retro'}
             </span>
           </button>
         </div>
