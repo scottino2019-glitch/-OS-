@@ -50,6 +50,7 @@ interface PhoneContextType {
 
   calendarEvents: CalendarEvent[];
   addCalendarEvent: (event: Omit<CalendarEvent, 'id'>) => void;
+  updateCalendarEvent: (id: string, updates: Partial<CalendarEvent>) => void;
   deleteCalendarEvent: (id: string) => void;
 
   editorFiles: EditorFile[];
@@ -227,6 +228,14 @@ export const PhoneProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCalendarEvents(prev => [...prev, newEvt]);
     sound.playSuccess();
     showToast('日程已加入日历 (Evento Aggiunto)');
+  }, [showToast]);
+
+  const updateCalendarEvent = useCallback((id: string, updates: Partial<CalendarEvent>) => {
+    setCalendarEvents(prev =>
+      prev.map(e => (e.id === id ? { ...e, ...updates } : e))
+    );
+    sound.playTap();
+    showToast('日程与备注已更新 (Evento Aggiornato)');
   }, [showToast]);
 
   const deleteCalendarEvent = useCallback((id: string) => {
@@ -698,6 +707,7 @@ export const PhoneProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deleteNote,
         calendarEvents,
         addCalendarEvent,
+        updateCalendarEvent,
         deleteCalendarEvent,
         editorFiles,
         addEditorFile,

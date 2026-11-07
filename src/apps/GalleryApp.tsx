@@ -19,7 +19,12 @@ import {
   Sun,
   Contrast,
   RefreshCw,
-  SwitchCamera
+  SwitchCamera,
+  SlidersHorizontal,
+  Grid3X3,
+  Timer,
+  Zap,
+  ZapOff
 } from 'lucide-react';
 
 const CAMERA_WATERMARKS = [
@@ -79,6 +84,24 @@ export const GalleryApp: React.FC = () => {
   const [activeDeviceIndex, setActiveDeviceIndex] = useState<number>(0);
   const [currentDeviceLabel, setCurrentDeviceLabel] = useState<string>('');
   const [manualMirror, setManualMirror] = useState<boolean | null>(null);
+
+  // Dedicated Camera Menu & Shot Options
+  const [isCameraMenuOpen, setIsCameraMenuOpen] = useState(false);
+  const [cameraTimer, setCameraTimer] = useState<number>(0); // 0 = off, 3, 5, 10
+  const [countdownRemaining, setCountdownRemaining] = useState<number | null>(null);
+  const countdownTimerRef = useRef<number | null>(null);
+  const [showGrid, setShowGrid] = useState(false);
+  const [flashSimulation, setFlashSimulation] = useState<'off' | 'on' | 'auto'>('auto');
+  const [isFlashing, setIsFlashing] = useState(false);
+
+  // Clear timer on unmount
+  useEffect(() => {
+    return () => {
+      if (countdownTimerRef.current !== null) {
+        window.clearInterval(countdownTimerRef.current);
+      }
+    };
+  }, []);
 
   // Photo Editor State
   const [isEditing, setIsEditing] = useState(false);
@@ -832,6 +855,57 @@ export const GalleryApp: React.FC = () => {
     setMode('gallery');
   };
 
+  const cancelCountdown = () => {
+    if (countdownTimerRef.current !== null) {
+      window.clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setCountdownRemaining(null);
+  };
+
+  const triggerCameraCapture = () => {
+    if (countdownRemaining !== null) {
+      cancelCountdown();
+      return;
+    }
+
+    if (cameraTimer > 0) {
+      setIsCameraMenuOpen(false);
+      let count = cameraTimer;
+      setCountdownRemaining(count);
+      sound.playTap();
+
+      if (countdownTimerRef.current !== null) {
+        window.clearInterval(countdownTimerRef.current);
+      }
+
+      countdownTimerRef.current = window.setInterval(() => {
+        count -= 1;
+        if (count > 0) {
+          setCountdownRemaining(count);
+          sound.playTap();
+        } else {
+          if (countdownTimerRef.current !== null) {
+            window.clearInterval(countdownTimerRef.current);
+            countdownTimerRef.current = null;
+          }
+          setCountdownRemaining(null);
+          executeFinalCapture();
+        }
+      }, 1000);
+    } else {
+      executeFinalCapture();
+    }
+  };
+
+  const executeFinalCapture = () => {
+    if (flashSimulation !== 'off') {
+      setIsFlashing(true);
+      setTimeout(() => setIsFlashing(false), 200);
+    }
+    takeSnapshot();
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1266,17 +1340,18 @@ export const GalleryApp: React.FC = () => {
   // ==================== 3. CAMERA MODE ====================
   if (mode === 'camera') {
     return (
-      <div className="flex flex-col h-full bg-slate-950 text-white relative select-none">
+      <div className="flex flex-col h-full bg-slate-950 text-white relative select-none overflow-hidden">
         {/* Camera Top Bar */}
-        <div className="flex items-center justify-between px-3.5 py-2.5 bg-black/60 backdrop-blur-md z-10 shrink-0">
+        <div className="flex items-center justify-between px-3 py-2 bg-black/75 backdrop-blur-md z-30 shrink-0 border-b border-white/10">
           <button
             onClick={() => setMode('gallery')}
-            className="text-xs font-bold text-white px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-xl active:scale-95 transition-all cursor-pointer"
+            className="flex items-center gap-1 text-xs font-bold text-white px-2.5 py-1.5 bg-white/15 hover:bg-white/25 rounded-xl active:scale-95 transition-all cursor-pointer"
           >
-            {t('返回相册', 'Galleria')}
+            <ChevronLeft size={16} />
+            <span>{t('相册', 'Galleria')}</span>
           </button>
 
-          {/* Center: Camera orientation pill */}
+          {/* Center: Quick camera flip pill */}
           <button
             onClick={handleToggleCamera}
             disabled={isSwitchingCamera}
@@ -1284,50 +1359,64 @@ export const GalleryApp: React.FC = () => {
             title="Tocca per invertire fotocamera"
           >
             <SwitchCamera size={14} className={isSwitchingCamera ? 'animate-spin text-amber-400' : ''} />
-            <span>
-              {cameraDirection === 'environment' ? '📷 Retro' : '🤳 Frontale'}
-            </span>
+            <span>{cameraDirection === 'environment' ? '📷 Retro' : '🤳 Frontale'}</span>
             {videoDevices.length > 1 && (
-              <span className="text-[10px] bg-white/25 px-1.5 py-0.2 rounded-full text-white/90 font-mono">
+              <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-full text-white/90 font-mono">
                 {activeDeviceIndex + 1}/{videoDevices.length}
               </span>
             )}
           </button>
 
+          {/* Right: Quick actions & Camera Menu Trigger */}
           <div className="flex items-center gap-1.5">
-            {/* Mirror / Specchio toggle button */}
+            {/* Quick Grid Button */}
             <button
-              onClick={() => setManualMirror(prev => (prev === null ? !effectiveIsMirrored : !prev))}
-              className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border transition-all active:scale-95 cursor-pointer ${
-                effectiveIsMirrored
-                  ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
-                  : 'bg-white/10 text-white/70 border-white/20'
+              onClick={() => {
+                sound.playTap();
+                setShowGrid(g => !g);
+              }}
+              title="Griglia 3x3"
+              className={`p-1.5 rounded-xl border transition-all active:scale-95 cursor-pointer ${
+                showGrid
+                  ? 'bg-amber-400/25 text-amber-300 border-amber-400/50'
+                  : 'bg-white/10 text-white/70 border-white/15'
               }`}
-              title="Inverti effetto specchio orizzontale"
             >
-              {effectiveIsMirrored ? 'Specchio: ON' : 'Specchio: OFF'}
+              <Grid3X3 size={15} />
             </button>
 
-            {/* Toggle Watermark on/off cleanly */}
+            {/* Quick Timer Indicator / Button */}
             <button
-              onClick={() => setCameraWatermarkEnabled(prev => !prev)}
-              className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border transition-all active:scale-95 cursor-pointer ${
-                cameraWatermarkEnabled
-                  ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
-                  : 'bg-white/10 text-white/60 border-white/20'
+              onClick={() => {
+                sound.playTap();
+                setCameraTimer(t => (t === 0 ? 3 : t === 3 ? 5 : t === 5 ? 10 : 0));
+              }}
+              title="Timer autoscatto"
+              className={`px-2 py-1 rounded-xl border text-[11px] font-bold transition-all active:scale-95 cursor-pointer flex items-center gap-1 ${
+                cameraTimer > 0
+                  ? 'bg-amber-400/25 text-amber-300 border-amber-400/50'
+                  : 'bg-white/10 text-white/70 border-white/15'
               }`}
-              title="Attiva o disattiva la filigrana Leica sulla foto"
             >
-              {cameraWatermarkEnabled ? 'Filigrana: ON' : 'Filigrana: OFF'}
+              <Timer size={14} />
+              <span>{cameraTimer > 0 ? `${cameraTimer}s` : 'Off'}</span>
             </button>
 
+            {/* Sleek Menù Fotocamera Button */}
             <button
-              onClick={handleToggleCamera}
-              disabled={isSwitchingCamera}
-              className="p-2 bg-white/20 hover:bg-white/30 text-white rounded-xl active:scale-95 transition-all cursor-pointer border border-white/10"
-              title="Inverti fotocamera frontale/posteriore"
+              onClick={() => {
+                sound.playTap();
+                setIsCameraMenuOpen(prev => !prev);
+              }}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold shadow-xs active:scale-95 transition-all cursor-pointer ${
+                isCameraMenuOpen
+                  ? 'bg-white text-stone-950 ring-1 ring-amber-400'
+                  : 'bg-amber-400 hover:bg-amber-300 text-stone-950'
+              }`}
+              title="Apri menù impostazioni fotocamera"
             >
-              <SwitchCamera size={16} className={isSwitchingCamera ? 'animate-spin text-amber-400' : ''} />
+              <SlidersHorizontal size={12} />
+              <span>Menù</span>
             </button>
           </div>
         </div>
@@ -1342,9 +1431,9 @@ export const GalleryApp: React.FC = () => {
           onChange={handleNativeCapture}
         />
 
-        {/* Viewfinder: 100% CLEAN, FULL-SCREEN LIVE VIDEO (NEVER COLLAPSES TO A STRIP) */}
+        {/* Viewfinder: 100% CLEAN, FULL-SCREEN LIVE VIDEO */}
         <div className="flex-1 min-h-0 relative w-full overflow-hidden bg-black flex items-center justify-center">
-          {/* Real Camera Video Element: ALWAYS pinned to absolute inset-0 so it NEVER collapses into a strip */}
+          {/* Real Camera Video Element */}
           <video
             ref={videoRef}
             autoPlay
@@ -1361,79 +1450,235 @@ export const GalleryApp: React.FC = () => {
             }}
           />
 
-          {/* Prominent floating camera direction selector (Posteriore / Frontale) */}
-          <div className="absolute top-3 left-0 right-0 z-20 flex flex-col items-center gap-1.5 px-3 pointer-events-none">
-            <div className="bg-black/85 backdrop-blur-md p-1 rounded-2xl border border-white/25 shadow-2xl flex items-center gap-1 pointer-events-auto">
-              <button
-                onClick={switchToRearCamera}
-                disabled={isSwitchingCamera}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
-                  cameraDirection === 'environment'
-                    ? 'bg-amber-400 text-stone-950 shadow-md ring-2 ring-amber-400/50'
-                    : 'text-stone-300 hover:text-white hover:bg-white/10'
-                }`}
-                title="Attiva la fotocamera posteriore (Retro)"
-              >
-                <span>📷 Posteriore (Retro)</span>
-              </button>
+          {/* Screen Flash Animation */}
+          {isFlashing && (
+            <div className="absolute inset-0 bg-white z-40 animate-out fade-out duration-200 pointer-events-none" />
+          )}
 
-              <button
-                onClick={switchToFrontCamera}
-                disabled={isSwitchingCamera}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
-                  cameraDirection === 'user'
-                    ? 'bg-amber-400 text-stone-950 shadow-md ring-2 ring-amber-400/50'
-                    : 'text-stone-300 hover:text-white hover:bg-white/10'
-                }`}
-                title="Attiva la fotocamera frontale (Selfie)"
-              >
-                <span>🤳 Frontale (Selfie)</span>
-              </button>
+          {/* Rule of Thirds 3x3 Grid Overlay */}
+          {showGrid && (
+            <div className="absolute inset-0 z-10 pointer-events-none grid grid-cols-3 grid-rows-3 border border-white/20">
+              <div className="border-r border-b border-white/25" />
+              <div className="border-r border-b border-white/25" />
+              <div className="border-b border-white/25" />
+              <div className="border-r border-b border-white/25" />
+              <div className="border-r border-b border-white/25" />
+              <div className="border-b border-white/25" />
+              <div className="border-r border-white/25" />
+              <div className="border-r border-white/25" />
+              <div />
             </div>
+          )}
 
-            {/* Direct 1-tap selection of detected camera sensors */}
-            {videoDevices.length > 1 && (
-              <div className="flex items-center gap-1.5 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/20 pointer-events-auto shadow-md max-w-full overflow-x-auto no-scrollbar">
-                <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider shrink-0">Sensore:</span>
-                {videoDevices.map((dev, idx) => {
-                  const isCur = activeDeviceIndex === idx;
-                  const isRearDev = isDeviceRear(dev);
-                  return (
-                    <button
-                      key={dev.deviceId || idx}
-                      onClick={() => selectCameraByIndex(idx)}
-                      disabled={isSwitchingCamera}
-                      className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold transition-all cursor-pointer active:scale-95 shrink-0 ${
-                        isCur
-                          ? 'bg-amber-400 text-stone-950 shadow-xs ring-1 ring-amber-400'
-                          : 'bg-white/10 text-stone-300 hover:text-white hover:bg-white/20'
-                      }`}
-                      title={dev.label || `Sensore camera #${idx + 1}`}
-                    >
-                      {isRearDev ? `📷 Cam ${idx + 1} (Retro)` : `🤳 Cam ${idx + 1} (Selfie)`}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Single camera notice */}
-            {videoDevices.length === 1 && (
-              <div className="bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/15 pointer-events-auto shadow-xs">
-                <span className="text-[10px] text-amber-300 font-medium">
-                  {cameraDirection === 'environment'
-                    ? '📷 Modalità Retro attiva (Webcam non specchiata)'
-                    : '🤳 Modalità Selfie attiva (Webcam specchiata)'}
+          {/* Countdown Timer Overlay with clear visual feedback */}
+          {countdownRemaining !== null && (
+            <div className="absolute inset-0 z-40 bg-black/65 backdrop-blur-xs flex flex-col items-center justify-center pointer-events-auto select-none">
+              <div className="w-20 h-20 rounded-full bg-amber-400/20 border-4 border-amber-400 flex items-center justify-center shadow-2xl mb-2 animate-pulse">
+                <span className="text-4xl font-mono font-black text-amber-400 drop-shadow-md">
+                  {countdownRemaining}
                 </span>
               </div>
-            )}
-          </div>
+              <span className="text-xs font-bold text-white bg-black/70 px-3 py-1 rounded-full border border-white/20 mb-2">
+                ⏱️ Autoscatto {countdownRemaining}s...
+              </span>
+              <button
+                onClick={cancelCountdown}
+                className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-full text-[10px] font-bold shadow-md cursor-pointer active:scale-95"
+              >
+                Annulla
+              </button>
+            </div>
+          )}
+
+          {/* Active Watermark Preview Badge at bottom of viewfinder */}
+          {cameraWatermarkEnabled && (
+            <div className="absolute bottom-2 left-3 right-3 z-15 pointer-events-none flex items-center justify-center">
+              <div className="bg-black/60 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/20 text-[9px] text-amber-300 font-mono font-semibold truncate max-w-full shadow-md">
+                📸 {CAMERA_WATERMARKS[cameraWatermarkIdx]}
+              </div>
+            </div>
+          )}
+
+          {/* Slide-down Menù Fotocamera Panel - Proporzionato e compatto */}
+          {isCameraMenuOpen && (
+            <div className="absolute inset-x-0 top-0 z-50 bg-stone-950/95 backdrop-blur-xl border-b border-amber-500/30 p-2.5 sm:p-3 shadow-2xl max-h-[85%] overflow-y-auto slim-scrollbar animate-in slide-in-from-top-2 duration-150">
+              <div className="max-w-sm mx-auto space-y-2">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 rounded-md bg-amber-400 text-stone-950 flex items-center justify-center font-bold">
+                      <SlidersHorizontal size={12} />
+                    </div>
+                    <span className="text-xs font-bold text-white">Menù Fotocamera</span>
+                  </div>
+                  <button
+                    onClick={() => setIsCameraMenuOpen(false)}
+                    className="p-1 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* 1. Watermark section */}
+                <div className="p-2 bg-white/5 rounded-xl border border-white/10 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white text-[11px] flex items-center gap-1">
+                      <span>🏷️ Filigrana Ottica</span>
+                    </span>
+                    <button
+                      onClick={() => setCameraWatermarkEnabled(!cameraWatermarkEnabled)}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer ${
+                        cameraWatermarkEnabled
+                          ? 'bg-amber-400 text-stone-950'
+                          : 'bg-white/15 text-stone-400'
+                      }`}
+                    >
+                      {cameraWatermarkEnabled ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+
+                  {cameraWatermarkEnabled && (
+                    <div className="grid grid-cols-2 gap-1 pt-0.5">
+                      {CAMERA_WATERMARKS.map((wm, idx) => (
+                        <button
+                          key={wm}
+                          onClick={() => setCameraWatermarkIdx(idx)}
+                          className={`p-1.5 rounded-lg border text-[10px] font-mono text-left truncate transition-all cursor-pointer ${
+                            cameraWatermarkIdx === idx
+                              ? 'bg-amber-400/20 text-amber-300 border-amber-400/60 font-bold'
+                              : 'bg-black/30 text-stone-400 border-white/5 hover:bg-white/10'
+                          }`}
+                        >
+                          {cameraWatermarkIdx === idx ? '✓ ' : ''}{wm}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Timer & Mirror controls */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  {/* Autoscatto Timer */}
+                  <div className="p-2 bg-white/5 rounded-xl border border-white/10 space-y-1">
+                    <span className="font-bold text-white text-[11px] block">⏱️ Autoscatto</span>
+                    <div className="grid grid-cols-4 gap-0.5">
+                      {[0, 3, 5, 10].map(s => (
+                        <button
+                          key={s}
+                          onClick={() => setCameraTimer(s)}
+                          className={`py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${
+                            cameraTimer === s
+                              ? 'bg-amber-400 text-stone-950'
+                              : 'bg-white/10 text-stone-300 hover:bg-white/15'
+                          }`}
+                        >
+                          {s === 0 ? 'Off' : `${s}s`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Effetto Specchio */}
+                  <div className="p-2 bg-white/5 rounded-xl border border-white/10 space-y-1">
+                    <span className="font-bold text-white text-[11px] block">🪞 Specchio</span>
+                    <button
+                      onClick={() => setManualMirror(prev => (prev === null ? !effectiveIsMirrored : !prev))}
+                      className={`w-full py-0.5 rounded-md text-[10px] font-bold cursor-pointer transition-all ${
+                        effectiveIsMirrored
+                          ? 'bg-amber-400 text-stone-950'
+                          : 'bg-white/10 text-stone-300 hover:bg-white/15'
+                      }`}
+                    >
+                      {effectiveIsMirrored ? 'Specchio ON' : 'Normale OFF'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Grid & Flash simulation */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className="p-2 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                    <span className="font-bold text-white text-[11px]">📐 Griglia 3x3</span>
+                    <button
+                      onClick={() => setShowGrid(!showGrid)}
+                      className={`px-2 py-0.5 rounded-md font-bold text-[10px] cursor-pointer ${
+                        showGrid ? 'bg-amber-400 text-stone-950' : 'bg-white/10 text-stone-400'
+                      }`}
+                    >
+                      {showGrid ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+
+                  <div className="p-2 bg-white/5 rounded-xl border border-white/10 space-y-1">
+                    <span className="font-bold text-white text-[11px] block">⚡ Flash Display</span>
+                    <div className="grid grid-cols-3 gap-0.5">
+                      {(['off', 'auto', 'on'] as const).map(fl => (
+                        <button
+                          key={fl}
+                          onClick={() => setFlashSimulation(fl)}
+                          className={`py-0.5 rounded-md text-[9px] font-bold uppercase cursor-pointer ${
+                            flashSimulation === fl
+                              ? 'bg-amber-400 text-stone-950'
+                              : 'bg-white/10 text-stone-300'
+                          }`}
+                        >
+                          {fl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Sensor Selection */}
+                {videoDevices.length > 1 && (
+                  <div className="p-2 bg-white/5 rounded-xl border border-white/10 space-y-1">
+                    <span className="font-bold text-white text-[11px] block">📷 Sensori Fotocamera:</span>
+                    <div className="grid grid-cols-2 gap-1">
+                      {videoDevices.map((dev, idx) => {
+                        const isCur = activeDeviceIndex === idx;
+                        const isRearDev = isDeviceRear(dev);
+                        return (
+                          <button
+                            key={dev.deviceId || idx}
+                            onClick={() => {
+                              selectCameraByIndex(idx);
+                              setIsCameraMenuOpen(false);
+                            }}
+                            className={`p-1.5 rounded-lg text-[10px] font-bold text-left transition-all cursor-pointer ${
+                              isCur
+                                ? 'bg-amber-400 text-stone-950 font-bold shadow-xs'
+                                : 'bg-white/10 text-stone-300 hover:bg-white/20'
+                            }`}
+                          >
+                            <div className="truncate font-semibold">
+                              {isRearDev ? `Retro #${idx + 1}` : `Frontale #${idx + 1}`}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 5. Trigger physical mobile camera */}
+                <button
+                  onClick={() => {
+                    nativeCameraInputRef.current?.click();
+                    setIsCameraMenuOpen(false);
+                  }}
+                  className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-xs active:scale-98 transition-all"
+                >
+                  <Camera size={13} />
+                  <span>Usa Fotocamera Nativa Smartphone</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Simple Permission Grant / Error prompt ONLY if no stream and no permission */}
           {(!hasCameraPermission || !mediaStream) && (
             <div
               style={{ filter: FILTERS[cameraFilterIdx].css }}
-              className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-stone-950 p-6 text-center text-white z-10"
+              className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-stone-950 p-6 text-center text-white z-20"
             >
               <Camera size={44} className="text-amber-400 mb-3" />
               <h3 className="text-base font-bold mb-1">
@@ -1473,15 +1718,18 @@ export const GalleryApp: React.FC = () => {
         </div>
 
         {/* Filters Picker */}
-        <div className="px-4 py-2 bg-slate-900 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 touch-scroll">
+        <div className="px-4 py-2 bg-slate-900 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 touch-scroll border-t border-white/5">
           {FILTERS.map((f, idx) => (
             <button
               key={f.name}
-              onClick={() => setCameraFilterIdx(idx)}
-              className={`text-xs px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-colors active:scale-95 ${
+              onClick={() => {
+                sound.playTap();
+                setCameraFilterIdx(idx);
+              }}
+              className={`text-xs px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-colors active:scale-95 cursor-pointer ${
                 cameraFilterIdx === idx
-                  ? 'bg-amber-400 text-slate-950'
-                  : 'bg-white/10 text-slate-300'
+                  ? 'bg-amber-400 text-slate-950 shadow-xs'
+                  : 'bg-white/10 text-slate-300 hover:bg-white/20'
               }`}
             >
               {f.name} ({f.nameIt})
@@ -1490,23 +1738,28 @@ export const GalleryApp: React.FC = () => {
         </div>
 
         {/* Shutter Controls */}
-        <div className="p-4 bg-black flex items-center justify-around shrink-0">
+        <div className="p-4 bg-black flex items-center justify-around shrink-0 border-t border-white/10">
           <button
-            onClick={() => setMode('gallery')}
-            className="w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 active:scale-95 transition-all cursor-pointer"
-            title="Galleria"
+            onClick={() => {
+              sound.playTap();
+              setMode('gallery');
+            }}
+            className="w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-200 active:scale-95 transition-all cursor-pointer border border-white/15"
+            title="Torna alla Galleria"
           >
             <ImageIcon size={20} />
           </button>
 
-          {/* Big Shutter button (Live camera preview capture) */}
+          {/* Big Shutter button (Live camera preview capture with timer and flash) */}
           <button
-            onClick={takeSnapshot}
-            disabled={isSwitchingCamera}
+            onClick={triggerCameraCapture}
+            disabled={isSwitchingCamera || countdownRemaining !== null}
             className="w-18 h-18 rounded-full border-4 border-white/90 p-1 flex items-center justify-center active:scale-95 transition-transform cursor-pointer disabled:opacity-50 shadow-lg"
-            title="Scatta foto con anteprima"
+            title="Scatta foto"
           >
-            <div className="w-full h-full rounded-full bg-white active:bg-amber-400 transition-colors" />
+            <div className={`w-full h-full rounded-full transition-colors ${
+              countdownRemaining !== null ? 'bg-amber-400 animate-pulse' : 'bg-white active:bg-amber-400'
+            }`} />
           </button>
 
           {/* Switch Camera Button (Front / Rear) */}
@@ -1514,11 +1767,11 @@ export const GalleryApp: React.FC = () => {
             onClick={handleToggleCamera}
             disabled={isSwitchingCamera}
             title={cameraDirection === 'environment' ? 'Passa a Fotocamera Frontale (Selfie)' : 'Passa a Fotocamera Posteriore (Retro)'}
-            className="w-11 h-11 rounded-full bg-slate-800 hover:bg-slate-700 border border-white/20 flex flex-col items-center justify-center text-slate-200 active:scale-95 transition-all cursor-pointer shadow-md"
+            className="w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 border border-white/15 flex flex-col items-center justify-center text-slate-200 active:scale-95 transition-all cursor-pointer shadow-md"
           >
             <SwitchCamera size={18} className={isSwitchingCamera ? 'animate-spin text-amber-400' : 'text-white'} />
             <span className="text-[8px] font-bold text-slate-300 mt-0.5 leading-none">
-              {cameraDirection === 'environment' ? 'Passa Selfie' : 'Passa Retro'}
+              {cameraDirection === 'environment' ? 'Selfie' : 'Retro'}
             </span>
           </button>
         </div>

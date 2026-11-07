@@ -323,14 +323,13 @@ export const PhoneChassis: React.FC = () => {
   );
 
   // =========================================================================
-  // VIEW MODE A: FULLSCREEN MOBILE VIEW (Optimized for real smartphones)
-  // Zero CSS transforms, direct 1:1 touch coordinate mapping, fluid touch scrolling!
+  // VIEW MODE A: FULLSCREEN MOBILE VIEW (Dimensioni originali)
   // =========================================================================
   if (viewMode === 'fullscreen') {
     return (
-      <div className="w-full h-[100dvh] bg-slate-900 text-slate-800 flex flex-col items-center justify-between overflow-hidden relative">
+      <div className="w-full h-[100dvh] bg-slate-900 text-slate-800 flex flex-col items-center justify-between overflow-hidden relative select-none">
         {/* Floating Minimal Mode Switcher Pill */}
-        <div className="absolute top-1 right-2 z-50 flex items-center gap-1.5 opacity-80 hover:opacity-100 transition-opacity">
+        <div className="absolute top-2 right-3 z-50 flex items-center gap-1.5 opacity-90 hover:opacity-100 transition-opacity">
           <button
             onClick={() => setViewMode('chassis')}
             title="Passa a modalità vetrina desktop (con scocca)"
@@ -348,15 +347,8 @@ export const PhoneChassis: React.FC = () => {
           </button>
         </div>
 
-        {/* Main Phone Device - Fills 100% of mobile screen, capped at max-w-md on tablet */}
-        <div
-          className="w-full h-full max-w-md mx-auto flex flex-col overflow-hidden relative shadow-2xl"
-          style={{
-            backgroundImage: isCustomImageWallpaper ? `url(${settings.wallpaper})` : undefined,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center'
-          }}
-        >
+        {/* Main Phone Device - Dimensioni originali */}
+        <div className="w-full h-full max-w-md mx-auto flex flex-col overflow-hidden relative shadow-2xl">
           {renderPhoneInner(false)}
         </div>
       </div>
@@ -439,7 +431,7 @@ export const PhoneChassis: React.FC = () => {
             <button
               onClick={() => {
                 setScaleMode(calculateAutoFitScale());
-                setUserZoomSet(true);
+                setUserZoomSet(false);
               }}
               title="Adatta l'intero telefono alla finestra"
               className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold border border-slate-300"
@@ -450,20 +442,14 @@ export const PhoneChassis: React.FC = () => {
             {/* Stepper +/- */}
             <div className="flex items-center bg-slate-100 rounded-xl p-0.5 border border-slate-300 text-xs">
               <button
-                onClick={() => {
-                  setScaleMode(prev => Math.max(0.40, Number((prev - 0.10).toFixed(2))));
-                  setUserZoomSet(true);
-                }}
+                onClick={() => setScaleMode(prev => Math.max(0.40, Number((prev - 0.10).toFixed(2))))}
                 title="Riduci (-10%)"
                 className="px-1.5 py-1 hover:text-black hover:bg-slate-200 rounded-lg font-bold text-slate-700"
               >
                 <ZoomOut size={13} />
               </button>
               <button
-                onClick={() => {
-                  setScaleMode(prev => Math.min(1.30, Number((prev + 0.10).toFixed(2))));
-                  setUserZoomSet(true);
-                }}
+                onClick={() => setScaleMode(prev => Math.min(1.30, Number((prev + 0.10).toFixed(2))))}
                 title="Ingrandisci (+10%)"
                 className="px-1.5 py-1 hover:text-black hover:bg-slate-200 rounded-lg font-bold text-slate-700"
               >
