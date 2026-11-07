@@ -110,7 +110,7 @@ export const WebBrowserApp: React.FC<WebBrowserAppProps> = ({
   </div>
   <button
     onClick={handleOpenExternal}
-    className="text-indigo-600 font-bold hover:underline shrink-0 ml-2 text-[11px]"
+    className="text-indigo-600 font-bold hover:underline shrink-0 ml-2 text-[8px]"
   >
     Apri fuori
   </button>
