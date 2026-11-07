@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { usePhone } from '../context/PhoneContext';
 import { Photo } from '../types/phone';
 import { sound } from '../utils/sound';
@@ -46,19 +46,31 @@ const FILTERS: FilterPreset[] = [
 ];
 
 export const GalleryApp: React.FC = () => {
-  const { photos, addPhoto, updatePhoto, deletePhoto, updateSettings, t, showToast } = usePhone();
+  const { photos, addPhoto, updatePhoto, deletePhoto, updateSettings, t, showToast, activeAppId } = usePhone();
 
-  const [mode, setMode] = useState<'gallery' | 'camera'>('gallery');
+  // Mode: initialized to camera if opened via Camera app icon, else gallery
+  const [mode, setMode] = useState<'gallery' | 'camera'>(() => activeAppId === 'camera' ? 'camera' : 'gallery');
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
 
-  // Live Camera State
+  // Sync mode if activeAppId changes
+  useEffect(() => {
+    if (activeAppId === 'camera') {
+      setMode('camera');
+    }
+  }, [activeAppId]);
+
+  // Live Camera State & Hardware Control
   const [cameraFilterIdx, setCameraFilterIdx] = useState(0);
   const [cameraWatermarkIdx, setCameraWatermarkIdx] = useState(0);
   const [cameraWatermarkEnabled, setCameraWatermarkEnabled] = useState(true);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState(false);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [currentDeviceId, setCurrentDeviceId] = useState<string | null>(null);
+  const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
 
   // Photo Editor State
@@ -107,86 +119,223 @@ export const GalleryApp: React.FC = () => {
     setEditFilterIdx(0);
   };
 
-  // Robust Camera Stream Connection & Cleanup
-  useEffect(() => {
-    let activeStream: MediaStream | null = null;
-    let isCancelled = false;
-
-    if (mode === 'camera') {
-      setIsCameraActive(false);
-
-      const startCamera = async () => {
+  // Release camera hardware tracks completely to unlock sensors
+  const stopCurrentStream = useCallback(() => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => {
         try {
-          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            setHasCameraPermission(false);
-            return;
-          }
-
-          let stream: MediaStream;
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
-              audio: false
-            });
-          } catch {
-            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-          }
-
-          if (isCancelled) {
-            stream.getTracks().forEach(t => t.stop());
-            return;
-          }
-
-          activeStream = stream;
-          setMediaStream(stream);
-          setHasCameraPermission(true);
-
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.onloadedmetadata = () => {
-              videoRef.current?.play().then(() => {
-                setIsCameraActive(true);
-              }).catch(e => console.warn('Video play error:', e));
-            };
-          }
-        } catch (err) {
-          console.warn('Camera stream failed:', err);
-          if (!isCancelled) {
-            setHasCameraPermission(false);
-            setMediaStream(null);
-            setIsCameraActive(false);
-          }
+          track.stop();
+        } catch (e) {
+          console.warn('Track stop error:', e);
         }
-      };
+      });
+      mediaStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setMediaStream(null);
+    setIsCameraActive(false);
+  }, []);
 
-      startCamera();
+  // Enumerate available video devices
+  const refreshVideoDevices = useCallback(async (): Promise<MediaDeviceInfo[]> => {
+    if (!navigator.mediaDevices?.enumerateDevices) return [];
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      const vids = all.filter(d => d.kind === 'videoinput');
+      setVideoDevices(vids);
+      return vids;
+    } catch (err) {
+      console.warn('Error enumerating devices:', err);
+      return [];
+    }
+  }, []);
+
+  // Robust stream starter with fallback constraints chain
+  const startCameraStream = useCallback(async (
+    targetFacing: 'user' | 'environment',
+    preferredDeviceId?: string | null
+  ) => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setHasCameraPermission(false);
+      return;
+    }
+
+    setIsSwitchingCamera(true);
+
+    // 1. Fully stop any active tracks first so hardware sensor lock is released
+    stopCurrentStream();
+
+    // Brief delay to allow mobile camera hardware drivers to completely release lock
+    await new Promise(r => setTimeout(r, 80));
+
+    let stream: MediaStream | null = null;
+
+    // Attempt 1: Exact deviceId if provided (most reliable when switching between multiple cameras)
+    if (preferredDeviceId) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: preferredDeviceId } },
+          audio: false
+        });
+      } catch (e) {
+        console.warn('Exact deviceId failed, trying facingMode:', e);
+        stream = null;
+      }
+    }
+
+    // Attempt 2: Exact facingMode
+    if (!stream) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: targetFacing } },
+          audio: false
+        });
+      } catch (e) {
+        console.warn('Exact facingMode failed, trying simple facingMode:', e);
+        stream = null;
+      }
+    }
+
+    // Attempt 3: Simple facingMode string (standard mobile Chrome & Safari support)
+    if (!stream) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: targetFacing },
+          audio: false
+        });
+      } catch (e) {
+        console.warn('Simple facingMode failed, trying ideal:', e);
+        stream = null;
+      }
+    }
+
+    // Attempt 4: Ideal facingMode
+    if (!stream) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: targetFacing } },
+          audio: false
+        });
+      } catch (e) {
+        console.warn('Ideal facingMode failed, falling back to basic video:', e);
+        stream = null;
+      }
+    }
+
+    // Attempt 5: Fallback unconstrained video
+    if (!stream) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      } catch (e) {
+        console.error('All camera attempts failed:', e);
+        setHasCameraPermission(false);
+        setIsSwitchingCamera(false);
+        return;
+      }
+    }
+
+    mediaStreamRef.current = stream;
+    setMediaStream(stream);
+    setHasCameraPermission(true);
+    setIsSwitchingCamera(false);
+
+    // Connect to video element
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.onloadedmetadata = () => {
+        videoRef.current?.play().then(() => {
+          setIsCameraActive(true);
+        }).catch(err => console.warn('Video play error:', err));
+      };
+    }
+
+    // Refresh devices now that permission is active to get full device labels
+    const devs = await refreshVideoDevices();
+
+    // Check active track settings to verify actual facingMode and deviceId
+    const activeTrack = stream.getVideoTracks()[0];
+    if (activeTrack) {
+      const settings = activeTrack.getSettings ? activeTrack.getSettings() : {};
+      const activeDevId = settings.deviceId || preferredDeviceId || null;
+      if (activeDevId) {
+        setCurrentDeviceId(activeDevId);
+      }
+
+      if (settings.facingMode) {
+        setFacingMode(settings.facingMode as 'user' | 'environment');
+      } else {
+        const label = (activeTrack.label || '').toLowerCase();
+        if (label.includes('back') || label.includes('rear') || label.includes('environment') || label.includes('posteriore') || label.includes('retro')) {
+          setFacingMode('environment');
+        } else if (label.includes('front') || label.includes('user') || label.includes('face') || label.includes('selfie') || label.includes('anteriore')) {
+          setFacingMode('user');
+        } else {
+          setFacingMode(targetFacing);
+        }
+      }
+    }
+  }, [stopCurrentStream, refreshVideoDevices]);
+
+  // Main lifecycle for camera mode
+  useEffect(() => {
+    if (mode === 'camera') {
+      startCameraStream(facingMode, currentDeviceId);
     } else {
-      setMediaStream(null);
-      setIsCameraActive(false);
+      stopCurrentStream();
     }
 
     return () => {
-      isCancelled = true;
-      if (activeStream) {
-        activeStream.getTracks().forEach(track => track.stop());
-      }
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
+      stopCurrentStream();
     };
-  }, [mode, facingMode]);
+  }, [mode]);
 
-  // Secondary stream attacher in case element renders after stream ready
-  useEffect(() => {
-    if (videoRef.current && mediaStream) {
-      if (videoRef.current.srcObject !== mediaStream) {
-        videoRef.current.srcObject = mediaStream;
+  // Switch camera between Front / Rear or cycle physical camera sensors
+  const handleSwitchCamera = useCallback(async () => {
+    sound.playTap();
+    const nextFacing = facingMode === 'environment' ? 'user' : 'environment';
+
+    // Find candidate device if multiple devices exist
+    let nextDeviceId: string | null = null;
+
+    if (videoDevices.length > 1) {
+      // Search for device matching nextFacing
+      const matching = videoDevices.find(d => {
+        const lbl = (d.label || '').toLowerCase();
+        if (nextFacing === 'environment') {
+          return lbl.includes('back') || lbl.includes('rear') || lbl.includes('environment') || lbl.includes('posteriore') || lbl.includes('retro');
+        } else {
+          return lbl.includes('front') || lbl.includes('user') || lbl.includes('face') || lbl.includes('selfie') || lbl.includes('anteriore');
+        }
+      });
+
+      if (matching && matching.deviceId !== currentDeviceId) {
+        nextDeviceId = matching.deviceId;
+      } else {
+        // Cycle to the next physical camera device
+        const curIdx = videoDevices.findIndex(d => d.deviceId === currentDeviceId);
+        const nextIdx = (curIdx + 1) % videoDevices.length;
+        nextDeviceId = videoDevices[nextIdx]?.deviceId || null;
       }
-      videoRef.current.play().then(() => {
-        setIsCameraActive(true);
-      }).catch(e => console.warn('Secondary video play error:', e));
     }
-  }, [mediaStream]);
+
+    setFacingMode(nextFacing);
+    if (nextDeviceId) {
+      setCurrentDeviceId(nextDeviceId);
+    }
+
+    await startCameraStream(nextFacing, nextDeviceId);
+
+    showToast(
+      nextFacing === 'environment'
+        ? '📷 Fotocamera Posteriore (Retro)'
+        : '🤳 Fotocamera Frontale (Selfie)'
+    );
+  }, [facingMode, videoDevices, currentDeviceId, startCameraStream, showToast]);
 
   // Combined CSS filter string for live preview
   const getCombinedFilterCss = (presetIdx: number) => {
@@ -845,7 +994,7 @@ export const GalleryApp: React.FC = () => {
     return (
       <div className="flex flex-col h-full bg-slate-950 text-white relative select-none">
         {/* Camera Top Bar */}
-        <div className="flex items-center justify-between px-4 py-3 bg-black/60 backdrop-blur-md z-10 shrink-0">
+        <div className="flex items-center justify-between px-3.5 py-2.5 bg-black/60 backdrop-blur-md z-10 shrink-0">
           <button
             onClick={() => setMode('gallery')}
             className="text-xs font-bold text-white px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-xl active:scale-95 transition-all cursor-pointer"
@@ -853,11 +1002,29 @@ export const GalleryApp: React.FC = () => {
             {t('返回相册', 'Galleria')}
           </button>
 
-          <div className="flex items-center gap-2">
-            {/* Toggle Watermark on/off cleanly without covering the screen */}
+          {/* Center: Camera orientation pill */}
+          <button
+            onClick={handleSwitchCamera}
+            disabled={isSwitchingCamera}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold active:scale-95 transition-all cursor-pointer border border-white/20"
+            title="Tocca per invertire tra fotocamera Posteriore e Frontale"
+          >
+            <SwitchCamera size={14} className={isSwitchingCamera ? 'animate-spin text-amber-400' : ''} />
+            <span>
+              {facingMode === 'environment' ? '📷 Retro' : '🤳 Frontale'}
+            </span>
+            {videoDevices.length > 1 && (
+              <span className="text-[10px] bg-white/25 px-1.5 py-0.2 rounded-full text-white/90 font-mono">
+                {videoDevices.length}
+              </span>
+            )}
+          </button>
+
+          <div className="flex items-center gap-1.5">
+            {/* Toggle Watermark on/off cleanly */}
             <button
               onClick={() => setCameraWatermarkEnabled(prev => !prev)}
-              className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all active:scale-95 cursor-pointer ${
+              className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border transition-all active:scale-95 cursor-pointer ${
                 cameraWatermarkEnabled
                   ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
                   : 'bg-white/10 text-white/60 border-white/20'
@@ -868,11 +1035,12 @@ export const GalleryApp: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
-              className="p-2 bg-white/20 hover:bg-white/30 text-white rounded-xl active:scale-95 transition-all cursor-pointer"
+              onClick={handleSwitchCamera}
+              disabled={isSwitchingCamera}
+              className="p-2 bg-white/20 hover:bg-white/30 text-white rounded-xl active:scale-95 transition-all cursor-pointer border border-white/10"
               title="Inverti fotocamera frontale/posteriore"
             >
-              <SwitchCamera size={16} />
+              <SwitchCamera size={16} className={isSwitchingCamera ? 'animate-spin text-amber-400' : ''} />
             </button>
           </div>
         </div>
@@ -886,9 +1054,9 @@ export const GalleryApp: React.FC = () => {
             playsInline
             muted
             style={{ filter: FILTERS[cameraFilterIdx].css }}
-            className={`w-full h-full object-cover transition-opacity duration-300 ${
+            className={`w-full h-full object-cover transition-all duration-300 ${
               hasCameraPermission || mediaStream ? 'opacity-100' : 'opacity-0 absolute inset-0'
-            } ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
+            } ${facingMode === 'user' ? 'scale-x-[-1]' : 'scale-x-1'}`}
             onLoadedMetadata={e => {
               const vid = e.target as HTMLVideoElement;
               vid.play().then(() => setIsCameraActive(true)).catch(() => {});
@@ -909,10 +1077,10 @@ export const GalleryApp: React.FC = () => {
                 {t('请允许浏览器使用摄像头，或点击下方切换镜头', 'Consenti l\'accesso alla fotocamera per visualizzare l\'anteprima in tempo reale')}
               </p>
               <button
-                onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+                onClick={() => startCameraStream(facingMode, currentDeviceId)}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
               >
-                <SwitchCamera size={16} />
+                <Camera size={16} />
                 <span>{t('切换 / 连接镜头', 'Connetti Fotocamera')}</span>
               </button>
             </div>
@@ -949,18 +1117,23 @@ export const GalleryApp: React.FC = () => {
           {/* Big Shutter button */}
           <button
             onClick={takeSnapshot}
-            className="w-18 h-18 rounded-full border-4 border-white/90 p-1 flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
+            disabled={isSwitchingCamera}
+            className="w-18 h-18 rounded-full border-4 border-white/90 p-1 flex items-center justify-center active:scale-95 transition-transform cursor-pointer disabled:opacity-50"
           >
             <div className="w-full h-full rounded-full bg-white active:bg-amber-400 transition-colors" />
           </button>
 
           {/* Switch Camera Button (Front / Rear) */}
           <button
-            onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+            onClick={handleSwitchCamera}
+            disabled={isSwitchingCamera}
             title="Inverti Fotocamera Frontale / Posteriore"
-            className="w-11 h-11 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-200 active:scale-95 transition-all cursor-pointer"
+            className="w-11 h-11 rounded-full bg-slate-800 hover:bg-slate-700 border border-white/20 flex flex-col items-center justify-center text-slate-200 active:scale-95 transition-all cursor-pointer shadow-md"
           >
-            <SwitchCamera size={20} />
+            <SwitchCamera size={18} className={isSwitchingCamera ? 'animate-spin text-amber-400' : 'text-white'} />
+            <span className="text-[8px] font-bold text-slate-300 mt-0.5 leading-none">
+              {facingMode === 'environment' ? 'Retro' : 'Selfie'}
+            </span>
           </button>
         </div>
       </div>
