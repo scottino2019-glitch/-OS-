@@ -105,8 +105,8 @@ export const WebBrowserApp: React.FC<WebBrowserAppProps> = ({
         {/* Fallback helper tip at bottom if site blocks iframe */}
         <div className="absolute bottom-2 left-2 right-2 bg-white/95 backdrop-blur-md border border-slate-200 rounded-xl px-3 py-2 flex items-center justify-between text-xs text-slate-700 shadow-md">
           <div className="flex items-center gap-1.5 truncate">
-            <Globe size={15} className="text-indigo-600 shrink-0" />
-            <span className="truncate">{appName} · Se il sito blocca l'iframe, tocca Apri:</span>
+            <Globe size={8} className="text-indigo-600 shrink-0" />
+            <span className="truncate">{appName} ·</span>
           </div>
           <button
             onClick={handleOpenExternal}
