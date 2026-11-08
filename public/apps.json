@@ -1,10 +1,45 @@
 [
   {
+    "name": "汉字随身听",
+    "nameIt": "Dettati",
+    "url": "https://hanziwalkman.vercel.app"
+  },
+   {
+    "name": "汉子实验室",
+    "nameIt": "HanziLab",
+    "url": "https://hanzilab.vercel.app"
+  },
+  {
+    "name": "我写",
+    "nameIt": "Scrivolingo",
+    "url": "https://scrivolingo-hub.vercel.app"
+  },
+   {
+    "name": "中国书店",
+    "nameIt": "Libreria",
+    "url": "https://libreria-cinese.vercel.app"
+  },
+   {
+    "name": "中国书店",
+    "nameIt": "Libreria",
+    "url": "https://libreria-cinese.vercel.app"
+  },
+   {
+    "name": "汉字",
+    "nameIt": "Hanzi",
+    "url": "https://hanzi-pwa-five.vercel.app"
+  },
+  {
+    "name": "汉文",
+    "nameIt": "Cinese",
+    "url": "https://lingua-cinese.vercel.app/"
+  },
+  {
     "name": "在线画板",
     "nameIt": "Lavagna",
     "url": "https://excalidraw.com/"
   },
-  {
+   {
     "name": "中华萌典",
     "nameIt": "Moe",
     "url": "https://www.moedict.tw/"
